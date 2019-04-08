@@ -70,6 +70,9 @@ To add new aip nodes we go through expand and init again after adjusting the nod
 Only newly expanded node are inited.
 The tokens are also fetched.
 
+In case you want to apply playbook on already initialized nodes:
+stage=init ./aws_aip-node.sh
+
 ### Update the console - ./aws_aip-console.sh -t aipnode
 
 Registers new nodes with tokens

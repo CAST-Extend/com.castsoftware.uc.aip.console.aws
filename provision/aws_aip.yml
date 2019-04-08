@@ -194,7 +194,7 @@
 # AIP NODES
 ###########
 
-- hosts: aip_node_hosts:&expand
+- hosts: "aip_node_hosts:&{{stage}}"
   name: Windows aip nodes
   remote_user: Administrator
   gather_facts: no
