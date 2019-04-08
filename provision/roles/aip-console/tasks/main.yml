@@ -1,0 +1,112 @@
+---
+- name: Generate a s3 pre-fetch url to aip rest api installer
+  vars:
+      ansible_connection: local
+  local_action:
+      module: aws_s3
+      bucket: "{{cast_aip_s3_bucket}}" 
+      object: "{{cast_aip_console_file}}"
+      mode: geturl
+  register: aip_console_s3_url
+
+# Download the installer
+- name: Download aip rest api installer
+  get_url:
+      url: "{{aip_console_s3_url.url}}"
+      dest: "/tmp/{{cast_aip_console_file}}"
+
+- name: Install openjdk-8
+  become: yes
+  apt:
+    name: openjdk-8-jdk-headless
+    state: latest
+
+# TODO: move to role filebeat
+- name: Install filebeat
+  become: yes
+  import_role:
+      name: geerlingguy.filebeat
+  when: logcollector_host is defined
+
+- name: Copy filebeat config
+  become: yes
+  template:
+      src: filebeat.yml.j2
+      dest: /etc/filebeat/filebeat.yml
+  notify: restart filebeat
+  when: logcollector_host is defined
+  
+- name: Copy aip console defaults
+  template:
+      src: AIPConsole.defaults.j2
+      dest: /tmp/AIPConsole.defaults
+
+- name: Install aip console webi
+  become: yes
+  command: "java -jar /tmp/{{cast_aip_console_file}} -defaults-file /tmp/AIPConsole.defaults -auto"
+  args:
+      creates: '{{cast_webi_install_dir}}'
+  notify: Restart aip console service
+
+- name: Copy aip console service unit
+  become: yes
+  template:
+      src: aip-console.service.j2
+      dest: /etc/systemd/system/aip-console.service
+  notify: Restart aip console service
+
+# Below is a hack to inject tokens in the console database
+# TODO: replace with console admin api usage
+
+- name: Start aip console service
+  tags:
+    - service
+  become: yes
+  service:
+      name: aip-console.service
+      state: started
+
+- name: Wait for application port become available
+  wait_for:
+      host: "{{public_ip_address}}"
+      port: 8081
+      delay: 10
+- name: Prepare h2 install path
+  become: yes
+  file:
+    name: /var/lib/h2
+    state: directory
+
+- name: Get h2 zip
+  become: yes
+  unarchive:
+      remote_src: yes
+      src: http://www.h2database.com/h2-2019-03-13.zip
+      dest: /var/lib/h2
+
+- name: Set aip node fact from fetched aip properties
+  tags: 
+    - aipnode
+  set_fact:
+      aipnodes: "{{ (aipnodes|default({}))|combine({item.path.split('/')[-2]: { 'token': lookup('ini', 'liquibase.parameters.baseToken type=properties file={{item.src}}'), 'port': lookup('ini', 'server.port type=properties file={{item.src}}') }})}}"
+  with_filetree: aip-nodes/
+  when: item.state == 'file'
+
+- name: Init aip console sql
+  tags: 
+    - aipnode
+  template:
+      src: init.sql.j2
+      dest: /tmp/init.sql
+
+- name: Inject node config in database
+  tags:
+      - aipnode
+  become: yes
+  shell: |
+       java -cp /var/lib/h2/h2/bin/h2*.jar org.h2.tools.Shell -url "jdbc:h2:file:/var/lib/aip/AipConsole/data/db/hellodb;AUTO_SERVER=true" -user sa -sql "$(</tmp/init.sql)"
+  args:
+      executable: /bin/bash
+
+
+

@@ -1,0 +1,3 @@
+cast_opt: 'C:\\OPT'
+cast_aip_install_dir: '{{cast_opt}}\\CAST_AIP'
+cast_aip_s3_bucket: casthighlight-ci

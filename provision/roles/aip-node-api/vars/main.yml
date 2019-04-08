@@ -1,0 +1,8 @@
+cast_opt: 'C:\\OPT'
+cast_webi_install_dir: '{{cast_opt}}\\CAST_WEBI'
+logpath_stdout: 'C:\\aipnode_stdout.log'
+logpath_stderr: 'C:\\aipnode_stderr.log'
+cast_ms_dir: 'C:\\CASTMS'
+cast_ms_delivery_dir: '{{cast_ms_dir}}\\Delivery'
+cast_ms_upload_dir: '{{cast_ms_dir}}\\Upload'
+cast_ms_deploy_dir: '{{cast_ms_dir}}\\Deploy'

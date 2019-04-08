@@ -1,0 +1,5 @@
+{% for aipnode in (aipnodes|dict2items) %}
+INSERT INTO PUBLIC.ANALYSIS_NODE (GUID, HOST, NAME, PORT, SCHEME, ACCESSIBLE, TOKEN, ENABLED) VALUES ('{{aipnode.key | to_uuid}}', '{{aipnode.key}}', '{{aipnode.key}} node', {{aipnode.value.port}}, 'http', true, '{{aipnode.value.token}}', true);
+{% endfor %}
+INSERT INTO PUBLIC.SECURITY_ENTRY (GUID, NAME, SECURITY_MODE, ENTRY_TYPE) VALUES ('8ec45057-45da-48d6-afe8-35b266884791', 'cast', 0, 0);
+INSERT INTO PUBLIC.SECURITY_GLOBAL_ROLE (SECURITY_ENTRY_GUID, ROLE) VALUES ('8ec45057-45da-48d6-afe8-35b266884791', 0);

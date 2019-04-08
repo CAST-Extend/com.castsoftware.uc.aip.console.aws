@@ -1,0 +1,116 @@
+# Bakes a base Windows image with CAIP installed
+#
+# This image is used to create new aip node where 
+# the rest api is installed and configured
+#
+
+
+# This playbook is executed on the controller
+# required extra variables:
+# - win_admin_password: the admin password
+#
+- hosts: localhost
+  vars_files:
+      - vars/aws-defaults.yml
+      - vars/aip-defaults.yml
+
+  vars:
+    aip_win_user_data: "aip_win_user_data.txt"
+  
+
+  tasks:
+    - name: Create sec group for WinRM and RDP
+      ec2_group:
+          name: winsec
+          description: WinRM RDP security group
+          rules:
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0
+                rule_desc: WinRM-HTTPS
+
+    - name: Replace admin password in user data
+      template:
+        src: "{{aip_win_user_data}}.j2"
+        dest: "{{aip_win_user_data}}"
+
+
+    - name: Create windows aip node
+      ec2:
+        instance_type: t2.small
+        vpc_subnet_id: "{{vpc_subnet_id}}"
+        image: "{{ windows_2019_ami_id }}"
+        groups:
+            - winsec
+        wait: true
+        instance_tags:
+            Name: aip_node_bake
+            Groups: aip_node_bake windows
+        user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
+      register: bake_host
+
+    - name: Add bake instance to inventory
+      add_host:
+        name: "{{ bake_host.instances[0].public_ip }}"
+        groups: aip_node_bake
+        instance_id: "{{ bake_host.instances[0].id }}"
+
+- hosts: aip_node_bake, aip_node_bake_windows
+  name: Windows aip nodes
+  remote_user: Administrator
+  gather_facts: no
+
+  vars_files:
+    - vars/aip-defaults.yml
+    - vars/aip-win-connection.yml
+
+  pre_tasks:
+    - name: Wait for WinRM to come up
+      wait_for_connection:
+          #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+    - name: Disable Domain firewall
+      win_firewall:
+          state: disabled
+          profiles:
+              - Domain
+              - Public
+              - Private
+  roles:
+    - { role: aip-node }
+
+  post_tasks:
+    - name: Create ami image from instance
+      # delegate the task to the localhost
+      # ansible_connection: local has to be set as it is already set at the playbook level.
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami:
+        instance_id: "{{instance_id}}"
+        wait: yes
+        name: "aip_node-{{cast_aip_version}}"
+        tags:
+            Name: aip_node
+            Stage: bake0
+  
+    - name: Terminate instance
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      connection: local
+      ec2:
+        instance_ids:
+          - "{{ instance_id }}"
+        state: absent 
+

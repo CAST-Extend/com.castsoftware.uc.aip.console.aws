@@ -1,0 +1,11 @@
+filebeat.inputs:
+- type: log
+  paths:
+    - "{{logpath_stdout}}"
+  tags: ["aip_node"]
+  multiline.pattern: '^[[:space:]]'
+  multiline.negate: false
+  multiline.match: after
+
+output.logstash:
+    hosts: ["{{logcollector_host}}:{{logcollector_port}}"]

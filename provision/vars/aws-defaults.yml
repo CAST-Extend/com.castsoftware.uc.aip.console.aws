@@ -1,0 +1,3 @@
+windows_2019_ami_id: ami-0410d3d3bd6d555f4
+debian_ami_id: ami-017b679ef539c260f
+vpc_subnet_id: subnet-906775af

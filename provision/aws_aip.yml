@@ -1,0 +1,314 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+      - vars/aws-defaults.yml
+      - vars/aip-defaults.yml
+
+  vars:
+    ec2_instances_states: present
+    id_rsa_pub: "{{private_key}}.pub"
+    aip_win_user_data: "aip_win_user_data.txt"
+    expansion: present
+    #aip_console_count: "{{ (expansion == 'present') | ternary(1, 0) }}" 
+    aip_node_count: 2
+
+  tasks:
+
+    - name: Create key pair
+      ec2_key:
+        name: "key_{{ansible_user_id}}"
+        key_material: "{{ lookup('file', '{{ id_rsa_pub }}') }}"
+
+    - name: Create sec group for WinRM and RDP
+      ec2_group:
+          name: winsec
+          description: WinRM RDP security group
+          state: "{{expansion}}"
+          rules:
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0
+                rule_desc: WinRM-HTTPS
+    - name: Find latest baked ami for aip node
+      tags:
+        - aipnode
+      ec2_ami_find:
+        owner: self
+        name: aip_node-{{cast_aip_version}}
+        no_result_action: fail
+      register: ami_find
+
+
+    - name: Create win aip node
+      tags: 
+        - aipnode
+      ec2:
+        instance_type: t2.small
+        vpc_subnet_id: "{{vpc_subnet_id}}"
+        image: "{{ ami_find.results[0].ami_id }}"
+        groups:
+            - winsec
+            - insubnet
+        wait: true
+        exact_count: "{{aip_node_count}}"
+        count_tag:
+          Name: aip_node
+        instance_tags:
+          Stage: expand
+          Name: aip_node
+          Groups: aip_node_hosts
+        user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
+      register: aip_node
+
+
+    - name: Create in subnet sec group
+      ec2_group:
+          name: insubnet 
+          description: Allow subnet only security group
+          state: "{{expansion}}"
+          rules:
+              - proto: all
+                from_port: -1
+                to_port: -1
+                cidr_ip: 172.31.64.0/20
+              - proto: tcp
+                ports:
+                    - 22
+                cidr_ip: 0.0.0.0/0
+          rules_egress:
+              - proto: all
+                from_port: -1
+                to_port: -1
+                cidr_ip: 0.0.0.0/0
+
+    - name: Aip console ingress rules
+      tags:
+        - aipconsole
+      ec2_group:
+          name: aipconsole
+          description: Allow aip console http port
+          state: "{{expansion}}"
+          rules:
+              - proto: tcp
+                ports:
+                    - 8081
+                cidr_ip: 0.0.0.0/0
+                rule_desc: allow http port for aip console
+
+
+    - name: Create aip postgres nodes
+      ec2:
+        key_name: "key_{{ansible_user_id}}"
+        instance_type: t2.small
+        vpc_subnet_id: "{{vpc_subnet_id}}"
+        image: "{{ debian_ami_id }}"
+        groups:
+            - insubnet 
+        wait: true
+        private_ip: 172.31.65.10
+        state: "{{expansion}}"
+        instance_tags:
+            Stage: expand
+            Name: aip_postgres
+            Groups: aip_postgres_hosts
+
+    - name: Create aip console nodes
+      tags: 
+        - aipconsole
+      ec2:
+        key_name: "key_{{ansible_user_id}}"
+        instance_type: t2.small
+        vpc_subnet_id: "{{vpc_subnet_id}}"
+        image: "{{ debian_ami_id }}"
+        groups:
+            - insubnet 
+            - aipconsole
+        wait: true
+        private_ip: 172.31.66.10
+        state: "{{expansion}}"
+        instance_tags:
+            Stage: expand
+            Name: aip_console
+            Groups: aip_console_hosts
+
+
+#############
+#AIP POSTGRES
+#############
+
+- hosts: aip_postgres_hosts:&expand
+  name: Postgres aip nodes
+  remote_user: admin
+  gather_facts: no
+
+  vars:
+    ansible_ssh_private_key_file: "{{ private_key }}" 
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+
+  pre_tasks:
+
+    - name: Wait for SSH to come up
+      wait_for_connection:
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+    - name: Install ntp
+      become: yes
+      apt:
+        name: ntp
+
+    - name: Install pip
+      become: yes
+      apt:
+        name: python-pip
+
+    - name: Check NTP service
+      service: name=ntp state=started
+
+  roles:
+      - { role: aip-css, become: true }
+  
+  #TODO:duplication
+  post_tasks:
+
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: "{{instance_id}}"
+        tags:
+          Stage: init
+
+###########
+# AIP NODES
+###########
+
+- hosts: aip_node_hosts:&expand
+  name: Windows aip nodes
+  remote_user: Administrator
+  gather_facts: no
+
+  vars_files:
+      - vars/aip-defaults.yml
+      - vars/aip-win-connection.yml
+
+  vars:
+      cast_postgres_port: 5432
+      cast_postgres_host: 172.31.65.10
+
+  pre_tasks:
+
+    - name: Wait for WinRM to come up
+      tags:
+          - hello
+      wait_for_connection:
+          #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      tags:
+        - hello
+      setup:
+
+    - name: Disable Domain firewall
+      win_firewall:
+          state: disabled
+          profiles:
+              - Domain
+              - Public
+              - Private
+
+  roles:
+    - { role: aip-node-api }
+
+
+  post_tasks:
+
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: "{{instance_id}}"
+        tags:
+          Stage: init
+
+
+################
+# AIP WEBCONSOLE
+###############
+
+- hosts: aip_console_hosts
+  name: Webi aip console nodes
+  remote_user: admin
+  gather_facts: no
+
+  vars_files:
+      - vars/aip-defaults.yml
+
+  vars:
+    ansible_ssh_private_key_file: "{{ private_key }}" 
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+
+  pre_tasks:
+
+    - name: Wait for SSH to come up
+      wait_for_connection:
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+    - name: Install ntp
+      become: yes
+      apt:
+        name: ntp
+
+    - name: Ensure pip is installed
+      become: yes
+      apt:
+        name: python-pip
+
+    - name: Ensure botocore is installed
+      become: yes
+      pip:
+        name: botocore
+
+    - name: Ensure boto3 is installed
+      become: yes
+      pip:
+        name: boto3
+
+    - name: Ensure zip is installed
+      become: yes
+      apt: 
+        name: zip
+
+    - name: Check NTP service
+      service: name=ntp state=started
+
+  roles:
+      - { role: aip-console }
+
+  post_tasks:
+
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: "{{instance_id}}"
+        tags:
+          Stage: init
+

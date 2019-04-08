@@ -1,0 +1,97 @@
+---
+# Enhanced CAIP Windows node with rest api
+# Install aip rest api on the baked CAIP Windows image
+# ( The baked image is build with roles/aip-node )
+# The baked image has already java, nssm
+#
+# often overridden variables:
+# - cast_aip_install_dir: directory of CAIP install 
+# - cast_aip_s3_bucket: s3 bucket where release is stored
+# - cast_aip_console_file: release file name (also the s3 object key)
+
+# A pre-fech url is passed to the instance to download the installer
+- name: Generate a s3 pre-fetch url to aip rest api installer
+  vars:
+      ansible_connection: local
+  local_action:
+      module: aws_s3
+      bucket: "{{cast_aip_s3_bucket}}" 
+      object: "{{cast_aip_console_file}}"
+      mode: geturl
+  register: aip_console_s3_url
+
+# Download the installer
+- name: Download aip rest api installer
+  win_get_url:
+      url: "{{aip_console_s3_url.url}}"
+      dest: C:\{{cast_aip_console_file}}
+
+# Configure the installer
+- name: Configure aip rest api install
+  win_template:
+      dest: C:\AIPConsole.defaults
+      src: AIPConsole.defaults.j2
+
+# Install the node
+- name: Install aip rest api node
+  win_command: java -jar C:\{{cast_aip_console_file}} -defaults-file AIPConsole.defaults -auto
+  args:
+      chdir: C:\
+      creates: '{{cast_webi_install_dir}}'
+
+# Create required directories
+- name: Create Upload dir
+  win_file:
+      path: "{{cast_ms_upload_dir}}"
+      state: directory
+
+- name: Create delivery directory
+  win_file: 
+      path: "{{cast_ms_delivery_dir}}"
+      state: directory
+
+- name: Create deploy directory
+  win_file: 
+      path: "{{cast_ms_deploy_dir}}"
+      state: directory
+
+# Fetch the properties file for this node
+# Used to grab the token
+- name: Fetch node property file
+  tags:
+      - aip_node_properties
+  fetch:
+      src: '{{cast_webi_install_dir}}\AipNode\data\aip-node-app.properties'
+      dest: "aip-nodes/{{private_ip_address}}/"
+      flat: yes
+
+- name: Install filebeat
+  block:
+    - win_chocolatey: name=filebeat
+
+    - win_service:
+        name: filebeat
+        state: stopped
+
+    - win_template:
+        dest: C:\ProgramData\chocolatey\lib\filebeat\tools\filebeat.yml
+        src: filebeat.yml.j2
+
+    - win_service:
+        name: filebeat
+        state: restarted
+
+  when: logcollector_host is defined
+
+# Start node as service
+# TODO: remove the hard coded path to JVM. 
+#       fetch the full path to java from a variable ?
+#       add the path a windows system path when installing java
+- name: Start aip node
+  win_nssm:
+      name: aip_webi_node
+      application: 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin\java.exe'
+      app_parameters_free_form: -jar -Xmx1024m -Xms256m "{{cast_webi_install_dir}}\\AipNode\\bin\\aip-node-app.jar" --spring.config.location="{{cast_webi_install_dir}}\\AipNode\\data\\aip-node-app.properties" 
+      stdout_file: "{{logpath_stdout}}"
+      stderr_file: "{{logpath_stderr}}"
+      state: started
