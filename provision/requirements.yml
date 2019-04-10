@@ -1,0 +1,7 @@
+---
+
+- src: https://github.com/geerlingguy/ansible-role-postgresql.git
+  name: geerlingguy.postgresql
+
+- src: https://github.com/geerlingguy/ansible-role-filebeat.git
+  name: geerlingguy.filebeat

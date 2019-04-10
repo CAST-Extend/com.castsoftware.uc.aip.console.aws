@@ -1,3 +1,3 @@
 #!/bin/bash
-./aws_aip.sh -i localhost "$@"
-./inventory.aws_ec2.sh --graph
+./aws_aip.sh -i expand.ini "$@"
+./aws_inventory.sh --graph

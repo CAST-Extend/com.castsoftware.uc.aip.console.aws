@@ -8,3 +8,6 @@ keyed_groups:
 
     - key: tags.Stage
       separator: ''
+hostnames:
+  - dns-name
+  - private-ip-address

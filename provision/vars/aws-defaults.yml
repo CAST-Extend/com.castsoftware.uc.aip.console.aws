@@ -1,3 +1,7 @@
 windows_2019_ami_id: ami-0410d3d3bd6d555f4
 debian_ami_id: ami-017b679ef539c260f
 vpc_subnet_id: subnet-906775af
+subnet_cidr: 172.31.64.0/20
+aip_aws_controller_ip: 172.31.66.10
+aip_postgres_ip: 172.31.66.11
+aip_console_ip: 172.31.66.12

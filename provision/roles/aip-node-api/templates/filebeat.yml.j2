@@ -6,17 +6,29 @@ filebeat.inputs:
   multiline.pattern: '^[[:space:]]'
   multiline.negate: false
   multiline.match: after
+  fields:
+    node_id: {{private_ip_address}}
 
 # TODO: add multiline support
 - type: log
   paths:
     - "C:\\OPT\\CAST_WEBI\\AipNode\\data\\logs\\**\\*.txt"
   tags: ["aip_node", "external_logs"]
+  multiline.pattern: '^[[:space:]]'
+  multiline.negate: false
+  multiline.match: after
+  fields:
+    node_id: {{private_ip_address}}
 
 - type: log
   paths:
     - "C:\\ProgramData\\CAST\\CAST\\Logs\\**\\*.log"
   tags: ["aip_node", "cast_logs"]
+  multiline.pattern: '^[[:space:]]'
+  multiline.negate: false
+  multiline.match: after
+  fields:
+    node_id: {{private_ip_address}}
 
 output.logstash:
     hosts: ["{{logcollector_host}}:{{logcollector_port}}"]

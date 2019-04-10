@@ -1,5 +1,130 @@
 ---
-- hosts: localhost
+- hosts: localhost:&bootstrap
+  connection: local
+  vars_files:
+    - vars/aws-defaults.yml
+
+  vars:
+    id_rsa_pub: "{{private_key}}.pub"
+
+  tasks:
+    - name: Create key pair
+      ec2_key:
+        name: "key_{{ansible_user_id}}"
+        key_material: "{{ lookup('file', '{{ id_rsa_pub }}') }}"
+
+    - name: Create insubnet sec group
+      ec2_group:
+          name: insubnet 
+          description: Allow subnet only security group
+          rules:
+              - proto: all
+                from_port: -1
+                to_port: -1
+                cidr_ip: "{{subnet_cidr}}"
+              - proto: tcp
+                ports:
+                    - 22
+                cidr_ip: 0.0.0.0/0
+    # Open windows RDP for debuging 
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0 
+                rule_desc: WinRM-HTTPS
+          rules_egress:
+              - proto: all
+                from_port: -1
+                to_port: -1
+                cidr_ip: 0.0.0.0/0
+
+    - name: Aip console ingress rules
+      tags:
+        - aipconsole
+      ec2_group:
+          name: aipconsole
+          description: Allow aip console http port
+          rules:
+              - proto: tcp
+                ports:
+                    - 8081
+                cidr_ip: 0.0.0.0/0
+                rule_desc: allow http port for aip console
+
+    - name: Bootstrap AWS controller 
+      tags:
+        - aipawscontroller
+      ec2:
+        key_name: "key_{{ansible_user_id}}"
+        instance_type: t2.nano
+        vpc_subnet_id: "{{vpc_subnet_id}}"
+        image: "{{ debian_ami_id }}"
+        groups:
+            - insubnet 
+        wait: true
+        private_ip: "{{aip_aws_controller_ip}}"
+        instance_tags:
+            Stage: expand
+            Name: aip_aws_controller
+            Groups: aip_aws_controller_hosts
+      when: "aip_aws_controller_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
+
+- hosts: aip_aws_controller_hosts
+  name: AIP Aws controller node
+  remote_user: admin
+  gather_facts: no
+
+  vars:
+    ansible_ssh_private_key_file: "{{ private_key }}" 
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+
+  pre_tasks:
+
+    - name: Wait for SSH to come up
+      wait_for_connection:
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+    - name: Install pip
+      become: yes
+      apt:
+        name: python-pip
+
+    - name: Install git
+      become: yes
+      apt:
+        name: git
+
+    - name: Install rsync
+      become: yes
+      apt:
+        name: rsync
+
+    - name: Copy ansible files
+      become: yes
+      synchronize:
+        src: ../../
+        dest: /var/lib/aipod
+
+  post_tasks:
+
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: "{{instance_id}}"
+        tags:
+          Stage: init
+      
+- hosts: localhost:&expand
   connection: local
 
   vars_files:
@@ -9,9 +134,6 @@
   vars:
     ec2_instances_states: present
     id_rsa_pub: "{{private_key}}.pub"
-    aip_win_user_data: "aip_win_user_data.txt"
-    expansion: present
-    #aip_console_count: "{{ (expansion == 'present') | ternary(1, 0) }}" 
     aip_node_count: 2
 
   tasks:
@@ -21,22 +143,6 @@
         name: "key_{{ansible_user_id}}"
         key_material: "{{ lookup('file', '{{ id_rsa_pub }}') }}"
 
-    - name: Create sec group for WinRM and RDP
-      ec2_group:
-          name: winsec
-          description: WinRM RDP security group
-          state: "{{expansion}}"
-          rules:
-              - proto: tcp
-                ports:
-                    - 3389
-                cidr_ip: 0.0.0.0/0
-                rule_desc: RDP
-              - proto: tcp
-                ports:
-                    - 5986
-                cidr_ip: 0.0.0.0/0
-                rule_desc: WinRM-HTTPS
     - name: Find latest baked ami for aip node
       tags:
         - aipnode
@@ -55,7 +161,6 @@
         vpc_subnet_id: "{{vpc_subnet_id}}"
         image: "{{ ami_find.results[0].ami_id }}"
         groups:
-            - winsec
             - insubnet
         wait: true
         exact_count: "{{aip_node_count}}"
@@ -65,46 +170,14 @@
           Stage: expand
           Name: aip_node
           Groups: aip_node_hosts
-        user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
       register: aip_node
 
 
-    - name: Create in subnet sec group
-      ec2_group:
-          name: insubnet 
-          description: Allow subnet only security group
-          state: "{{expansion}}"
-          rules:
-              - proto: all
-                from_port: -1
-                to_port: -1
-                cidr_ip: 172.31.64.0/20
-              - proto: tcp
-                ports:
-                    - 22
-                cidr_ip: 0.0.0.0/0
-          rules_egress:
-              - proto: all
-                from_port: -1
-                to_port: -1
-                cidr_ip: 0.0.0.0/0
-
-    - name: Aip console ingress rules
-      tags:
-        - aipconsole
-      ec2_group:
-          name: aipconsole
-          description: Allow aip console http port
-          state: "{{expansion}}"
-          rules:
-              - proto: tcp
-                ports:
-                    - 8081
-                cidr_ip: 0.0.0.0/0
-                rule_desc: allow http port for aip console
 
 
     - name: Create aip postgres nodes
+      tags:
+        - aippostgres
       ec2:
         key_name: "key_{{ansible_user_id}}"
         instance_type: t2.small
@@ -113,12 +186,12 @@
         groups:
             - insubnet 
         wait: true
-        private_ip: 172.31.65.10
-        state: "{{expansion}}"
+        private_ip: "{{aip_postgres_ip}}"
         instance_tags:
             Stage: expand
             Name: aip_postgres
             Groups: aip_postgres_hosts
+      when: "aip_postgres_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
     - name: Create aip console nodes
       tags: 
@@ -132,12 +205,18 @@
             - insubnet 
             - aipconsole
         wait: true
-        private_ip: 172.31.66.10
-        state: "{{expansion}}"
+        private_ip: "{{aip_console_ip}}"
         instance_tags:
             Stage: expand
             Name: aip_console
             Groups: aip_console_hosts
+      when: "aip_console_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
+
+
+    - name: Set stage
+      set_fact:
+        stage: expand
+
 
 
 #############
@@ -194,18 +273,19 @@
 # AIP NODES
 ###########
 
-- hosts: "aip_node_hosts:&{{stage}}"
+- hosts: "aip_node_hosts:&expand"
   name: Windows aip nodes
   remote_user: Administrator
   gather_facts: no
 
   vars_files:
+      - vars/aws-defaults.yml
       - vars/aip-defaults.yml
       - vars/aip-win-connection.yml
 
   vars:
       cast_postgres_port: 5432
-      cast_postgres_host: 172.31.65.10
+      cast_postgres_host: "{{aip_postgres_ip}}"
 
   pre_tasks:
 
