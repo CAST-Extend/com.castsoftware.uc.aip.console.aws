@@ -77,5 +77,7 @@ stage=init ./aws_aip-node.sh
 
 Registers new nodes with tokens
 
+### Putting it all together ./aws_aip-scale.sh <node_count>
+
 ## Removing nodes - TODO
 
