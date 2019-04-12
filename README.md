@@ -6,17 +6,19 @@ create security groups.
 For the moment we also assume a subnet 172.31.64.0/20 exists.
 (private ips are hard coded)
 
-## Environment variables to set in ~/.aip_aws
+## Environment variables to set in `~/.aip_aws`
 
+`
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 AWS_DEFAULT_REGION
 WIN_ADMIN_PASSWORD
 PRIVATE_KEY
+`
 
 One can also export them in the current shell session before calling the scripts
 
-## Bake the CAIP Windows node - ./aws_aip-bake.sh
+## Bake the CAIP Windows node - `./aws_aip-bake.sh`
 
 Since the install of CAIP is *very* long,
 the purpose of baking an image is to reduce the setup duration of nodes.
@@ -30,7 +32,7 @@ The CAIP tarball must be previously uploaded to a s3 bucket
 
 After a successful install a ami image with the same version is created for later use.
 
-## Expand - ./aws_aip-expand.sh
+## Expand - `./aws_aip-expand.sh`
 
 The machines to launch are of different types
 A type is a tuple (ami, instance size)
@@ -45,7 +47,7 @@ Expansion launches a given number of machines for each type:
 2 aipnode
 1 aipconsole
 
-## Init - ./aws_aip-postgres.sh && ./aws_aip-node.sh && ./aws_aip-console.sh
+## Init - `./aws_aip-postgres.sh && ./aws_aip-node.sh && ./aws_aip-console.sh`
 
 Each machine type has a particular initialisation process
 
@@ -63,21 +65,18 @@ Installs the aip console and configure known nodes
 
 To add new aip nodes we go through expand and init again after adjusting the node count
 
-### Adding new nodes - expand - EXTRA_VARS="aip_node_count=3" ./aws_aip-expand.sh -t aipnode 
+### Adding new nodes - expand - `EXTRA_VARS="aip_node_count=3" ./aws_aip-expand.sh -t aipnode` 
 
-### Adding new nodes - init - ./aws_aip-node.sh 
+### Adding new nodes - init - `./aws_aip-node.sh` 
 
 Only newly expanded node are inited.
 The tokens are also fetched.
 
-In case you want to apply playbook on already initialized nodes:
-stage=init ./aws_aip-node.sh
-
-### Update the console - ./aws_aip-console.sh -t aipnode
+### Update the console - `./aws_aip-console.sh -t aipnode`
 
 Registers new nodes with tokens
 
-### Putting it all together ./aws_aip-scale.sh <node_count>
+### Putting it all together `./aws_aip-scale.sh <node_count>`
 
 ## Removing nodes - TODO
 

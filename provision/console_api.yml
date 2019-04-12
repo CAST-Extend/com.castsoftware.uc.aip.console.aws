@@ -1,0 +1,36 @@
+# Sand box to try out the console api
+- hosts: aip_console_hosts
+  name: Webi aip console nodes
+  remote_user: admin
+  gather_facts: no
+
+  vars_files:
+    - vars/aip-defaults.yml
+
+  vars:
+    ansible_ssh_private_key_file: '{{ private_key }}'
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+
+  tasks:
+    - name: Set aip node fact from fetched aip properties
+      tags:
+        - aipnode
+      set_fact:
+        aipnodes: "{{ (aipnodes|default({}))|combine({item.path.split('/')[-2]: { 'token': lookup('ini', 'liquibase.parameters.baseToken type=properties file={{item.src}}'), 'port': lookup('ini', 'server.port type=properties file={{item.src}}') }})}}"
+      with_filetree: aip-nodes/
+      when: item.state == 'file'
+
+      # Login, get all cookies
+    - name: Get cookie
+      tags:
+        - aipnode
+      shell: |
+        curl -s -I -u cast:cast -XGET http://localhost:8081/api/user | sed -n -E 's/^Set-Cookie: (.*;) Path=.*$/\1/p' | paste -s -d ' '
+      register: cookie
+
+    - name: Console rest api add nodes
+      tags:
+        - aipnode
+      shell: |
+        curl -u cast:cast -X POST --header 'Cookie: {{cookie.stdout}}' --header 'X-XSRF-TOKEN: {{cookie.stdout.split(' ')[0].split('=')[1][:-1]}}' --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{  "host": "{{item.key}}",  "name": "{{item.key}} node",  "port": "{{item.value.port}}",  "scheme": "http",  "token": "{{item.value.token}}"}' 'http://localhost:8081/api/nodes'
+      loop: '{{aipnodes|dict2items}}'

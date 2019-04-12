@@ -55,8 +55,11 @@
       dest: /etc/systemd/system/aip-console.service
   notify: Restart aip console service
 
+#
 # Below is a hack to inject tokens in the console database
 # TODO: replace with console admin api usage
+# The admin api does not add nodes that are not reacheable!
+#
 
 - name: Start aip console service
   tags:
@@ -71,6 +74,7 @@
       host: "{{public_ip_address}}"
       port: 8081
       delay: 10
+
 - name: Prepare h2 install path
   become: yes
   file:
@@ -98,6 +102,7 @@
   template:
       src: init.sql.j2
       dest: /tmp/init.sql
+
 
 - name: Inject node config in database
   tags:
