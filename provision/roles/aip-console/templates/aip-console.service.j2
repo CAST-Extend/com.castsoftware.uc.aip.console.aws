@@ -2,7 +2,7 @@
 Description=aip console service
 
 [Service]
-ExecStart=/usr/bin/java -jar {{cast_webi_install_dir}}/AipConsole//bin/aip-console-app.jar --spring.config.location={{cast_webi_install_dir}}/AipConsole/data/aipConsole.properties
+ExecStart=/usr/bin/java -jar {{cast_webi_install_dir}}/AipConsole/bin/aip-console-app.jar --spring.config.location={{cast_webi_install_dir}}/AipConsole/data/aipConsole.properties
 
 [Install]
 WantedBy=multi-user.target

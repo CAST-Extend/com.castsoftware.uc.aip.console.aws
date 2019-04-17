@@ -1,6 +1,3 @@
-
-cast_aip_s3_bucket: casthighlight-ci
-cast_aip_console_file: AIP-Console-1.8.1-SNAPSHOT-1140.jar
 cast_webi_install_dir: /var/lib/aip
 logpath_stdout: "{{cast_webi_install_dir}}/AipConsole/data/logs/*.log"
 filebeat_create_config: false

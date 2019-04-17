@@ -5,3 +5,4 @@ subnet_cidr: 172.31.64.0/20
 aip_aws_controller_ip: 172.31.66.10
 aip_postgres_ip: 172.31.66.11
 aip_console_ip: 172.31.66.12
+aip_dashboard_ip: 172.31.66.13

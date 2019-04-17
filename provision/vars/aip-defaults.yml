@@ -1,12 +1,23 @@
+# S3 bucket to fetch artifacts
+cast_aip_s3_bucket: casthighlight-ci
+
+# CAIP zip is CAST_API_{{caip_aip_version}}.zip
 # CAIP version
 cast_aip_version: 8.3.11.1940
+cast_aip_zip: "CAST_AIP_{{cast_aip_version}}.zip" 
 
-# Release zip is stored in s3
-# S3 bucket
-cast_aip_s3_bucket: casthighlight-ci
-# S3 objects keys (and local file names)
-cast_aip_console_file: AIP-Console-1.8.1-SNAPSHOT-1229.jar
-cast_aip_file: "CAST_AIP_{{cast_aip_version}}.zip" 
+# AIP Console
+# Prefix
+cast_aip_console: AIP-Console
+# version
+# Note that the zip and the jar have different versions (- or _)
+cast_aip_console_version: 1.9.0
+cast_aip_console_build_number: 1237
+# Zip 
+cast_aip_console_zip: "{{cast_aip_console}}-{{cast_aip_console_version}}_{{cast_aip_console_build_number}}.zip" 
+# Jar ( inside the zip )
+cast_aip_console_jar: "{{cast_aip_console}}-{{cast_aip_console_version}}-{{cast_aip_console_build_number}}.jar" 
+
 
 # Install base dir for cast prooducts on Windows
 cast_opt: 'C:\\OPT'

@@ -35,4 +35,20 @@
     encrypted: yes 
     role_attr_flags: NOSUPERUSER,INHERIT,NOCREATEDB,NOCREATEROLE,NOREPLICATION
 
+- name: Copy measurement dump
+  copy:
+    src: general_measure.backup
+    dest: /tmp/
+
+- name: Restore General Measure
+  become: yes
+  become_user: postgres
+  vars:
+      ansible_ssh_pipelining: true
+  postgresql_db:
+      owner: operator
+      state: restore
+      name: postgres
+      target: /tmp/general_measure.backup
+
 

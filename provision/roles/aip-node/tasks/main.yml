@@ -5,7 +5,7 @@
 # often overridden variables:
 # - cast_aip_install_dir: directory to install CAIP
 # - cast_aip_s3_bucket: s3 bucket where release is stored
-# - cast_aip_file: release file name (also the s3 object key)
+# - cast_aip_zip: release file name (also the s3 object key)
 
 
 - name: Chocolatey
@@ -38,7 +38,7 @@
   local_action:
       module: aws_s3
       bucket: "{{cast_aip_s3_bucket}}" 
-      object: "{{cast_aip_file}}"
+      object: "{{cast_aip_zip}}"
       mode: geturl
   register: caip_s3_url
 

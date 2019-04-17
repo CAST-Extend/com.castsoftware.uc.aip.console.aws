@@ -1,0 +1,35 @@
+<Context docBase="{{ hl_home }}/Highlight-Portal.war"
+         privileged="true"
+         antiResourceLocking="false"
+         swallowOutput="true">
+
+    <!-- Work around lack of Max-Age support in IE/Edge -->
+    <CookieProcessor alwaysAddExpires="true" />
+
+    <Parameter name="spring.profiles.active" value="{{hl_spring_profile}}" override="false" />
+    <Parameter name="pg.username" value="highlight" override="false"/>
+    <Parameter name="pg.password" value="highlight" override="false"/>
+    <Parameter name="pg.portNumber" value="5432" override="false" />
+    <Parameter name="pg.serverName" value="localhost" override="false"/>
+    <Parameter name="pg.db" value="highlight" override="false"/>
+    <Parameter name="pg.currentSchema" value="highlight" override="false"/>
+    <Parameter name="batch.job.configuration.file.dir" value="{{ hl_batch }}" override="false"/>
+    <Parameter name="SAML_ETC" value="{{ hl_saml }}/saml.realms.yml" override="false"/>
+
+    <Parameter name="highlight.uriAgent" value="{{ hl_agent_uri }}" override="false"/>
+		<Parameter name="highlight.rooturl"  value="{{ hl_root_url }}" override="false"/>
+
+
+    <Resource name="mail/DEFAULT" auth="Container" type="javax.mail.Session" description="Highlight Mail Server Connector"
+    password="{{ hl_mail_password }}"
+    mail.smtp.host="{{ hl_mail_smtp_host }}"
+    mail.smtp.port="{{ hl_mail_smtp_port }}"
+    mail.smtp.auth="{{ hl_mail_smtp_auth }}"
+    mail.smtp.user="{{ hl_mail_smtp_user }}"
+    mail.smtp.starttls.enable="{{ hl_mail_smtp_starttls }}"
+    mail.smtp.socketFactory.port=""
+    />
+                                                                                            
+
+
+</Context>

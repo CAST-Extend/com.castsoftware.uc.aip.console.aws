@@ -1,0 +1,17 @@
+<Context docBase="/tmp/CAST-RESTAPI-integrated.war"
+         privileged="true"
+         antiResourceLocking="false"
+         swallowOutput="true">
+
+	<Resource name="jdbc/domains/Resource1" url="jdbc:postgresql://{{aip_postgres_ip}}:5432/postgres"
+			  username="operator" password="CastAIP"
+
+			  auth="Container" type="javax.sql.DataSource" driverClassName="org.postgresql.Driver"
+			  validationQuery="select 1"
+			  initialSize="5" maxTotal="20" maxIdle="10" maxWaitMillis="-1"/>
+
+  <Parameter name="domains-location" value="file:///etc/cast-dashboard/domains.properties" override="false"/>
+
+
+
+</Context>

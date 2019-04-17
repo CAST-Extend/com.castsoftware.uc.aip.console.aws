@@ -90,6 +90,8 @@
         name: rsync
 
     - name: Copy ansible files
+      tags:
+        - sync
       become: yes
       synchronize:
         src: ../../
@@ -99,7 +101,7 @@
       become: yes
       pip:
         name:
-          - request>=2.21.0
+          - requests==2.21.0
           - ansible
           - pywinrm
           - botocore

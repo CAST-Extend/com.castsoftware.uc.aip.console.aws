@@ -19,11 +19,24 @@
     - vars/aip-defaults.yml
 
   vars:
-    ec2_instances_states: present
     id_rsa_pub: '{{private_key}}.pub'
     aip_node_count: 2
 
   tasks:
+
+    # TODO: The same group is defined in bootstrap.yml
+    - name: Create insubnet sec group
+      ec2_group:
+        name: aip_default 
+        description: Allow in group and ssh communication
+        rules:
+          - proto: all
+            group_name: aip_default
+          - proto: tcp
+            ports:
+              - 22
+            cidr_ip: 0.0.0.0/0
+
     - name: Open http port for aip console
       tags:
         - aipconsole
@@ -88,6 +101,24 @@
           Groups: aip_postgres_hosts
       when: "aip_postgres_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
+    - name: Create aip dashboard nodes
+      tags:
+        - aipdashboard
+      ec2:
+        key_name: 'key_{{ansible_user_id}}'
+        instance_type: t2.small
+        vpc_subnet_id: '{{vpc_subnet_id}}'
+        image: '{{ debian_ami_id }}'
+        groups:
+          - aip_default
+        wait: true
+        private_ip: '{{aip_dashboard_ip}}'
+        instance_tags:
+          Stage: expand
+          Name: aip_dashboard
+          Groups: aip_dashboard_hosts
+      when: "aip_dashboard_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
+
     - name: Create aip console nodes
       tags:
         - aipconsole
@@ -120,6 +151,28 @@
   remote_user: admin
   gather_facts: no
 
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
+
+  vars:
+    cast_postgres_port: 5432
+    cast_postgres_host: '{{aip_postgres_ip}}'
+
+  pre_tasks:
+    - name: Wait for WinRM to come up
+      tags:
+        - hello
+      wait_for_connection:
+        #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      tags:
+        - hello
+      setup:
+
+    - name: Disable Domain firewall
   vars:
     ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
@@ -210,17 +263,18 @@
         resource: '{{instance_id}}'
         tags:
           Stage: init
-
-################
-# AIP WEBCONSOLE
+###############
+# AIP DASHBOARD
 ###############
 
-- hosts: aip_console_hosts
-  name: Webi aip console nodes
+- hosts: aip_dashboard_hosts
+  name: Dashboard node
   remote_user: admin
   gather_facts: no
 
+
   vars_files:
+    - vars/aws-defaults.yml
     - vars/aip-defaults.yml
 
   vars:
@@ -235,33 +289,43 @@
     - name: Gather facts for the first time
       setup:
 
-    - name: Install ntp
-      become: yes
-      apt:
-        name: ntp
+  roles:
+    - { role: aip-dashboard }
 
-    - name: Ensure pip is installed
-      become: yes
-      apt:
-        name: python-pip
+  post_tasks:
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: '{{instance_id}}'
+        tags:
+          Stage: init
 
-    - name: Ensure botocore is installed
-      become: yes
-      pip:
-        name: botocore
+################
+# AIP WEBCONSOLE
+###############
 
-    - name: Ensure boto3 is installed
-      become: yes
-      pip:
-        name: boto3
+- hosts: aip_console_hosts
+  name: Webi aip console nodes
+  remote_user: admin
+  gather_facts: no
 
-    - name: Ensure zip is installed
-      become: yes
-      apt:
-        name: zip
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
 
-    - name: Check NTP service
-      service: name=ntp state=started
+  vars:
+    ansible_ssh_private_key_file: '{{ private_key }}'
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+
+  pre_tasks:
+    - name: Wait for SSH to come up
+      wait_for_connection:
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
 
   roles:
     - { role: aip-console }

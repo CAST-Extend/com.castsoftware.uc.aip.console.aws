@@ -1,0 +1,38 @@
+---
+- name: Install openjdk-8
+  become: yes
+  apt:
+    name: openjdk-8-jdk-headless
+    state: latest
+
+- name: Install Tomcat 8
+  become: yes
+  apt:
+    name: tomcat8
+
+#TODO: add parameter to specify the target path (/tmp by default)
+- name: Presigned url to fetch 
+  import_role:
+    name: fetch_aip_console
+
+- name: Create etc dir for dasboard
+  become: yes
+  file:
+    path: /etc/cast-dashboard
+    state: directory
+
+- name: Copy domains.properties
+  become: yes
+  copy:
+    src: domains.properties
+    dest: /etc/cast-dashboard/domains.properties
+
+- name: Copy war descriptor to Catalina localhost
+  become: yes
+  template:
+    src: CAST-RESTAPI.xml.j2
+    dest: /etc/tomcat8/Catalina/localhost/CAST-RESTAPI.xml
+    owner: tomcat8
+    group: tomcat8
+  notify: Restart Tomcat Service
+
