@@ -19,7 +19,6 @@
     - vars/aip-defaults.yml
 
   vars:
-    id_rsa_pub: '{{private_key}}.pub'
     aip_node_count: 2
 
   tasks:
@@ -50,11 +49,6 @@
             cidr_ip: 0.0.0.0/0
             rule_desc: allow http port for aip console
 
-    - name: Create key pair
-      ec2_key:
-        name: 'key_{{ansible_user_id}}'
-        key_material: "{{ lookup('file', '{{ id_rsa_pub }}') }}"
-
     - name: Find latest baked ami for aip node
       tags:
         - aipnode
@@ -68,7 +62,7 @@
       tags:
         - aipnode
       ec2:
-        instance_type: t2.small
+        instance_type: t2.large
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ ami_find.results[0].ami_id }}'
         groups:
@@ -87,7 +81,7 @@
       tags:
         - aippostgres
       ec2:
-        key_name: 'key_{{ansible_user_id}}'
+        key_name: aip_controller_key
         instance_type: t2.small
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ debian_ami_id }}'
@@ -105,7 +99,7 @@
       tags:
         - aipdashboard
       ec2:
-        key_name: 'key_{{ansible_user_id}}'
+        key_name: aip_controller_key
         instance_type: t2.small
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ debian_ami_id }}'
@@ -123,7 +117,7 @@
       tags:
         - aipconsole
       ec2:
-        key_name: 'key_{{ansible_user_id}}'
+        key_name: aip_controller_key
         instance_type: t2.small
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ debian_ami_id }}'
@@ -174,7 +168,6 @@
 
     - name: Disable Domain firewall
   vars:
-    ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   pre_tasks:
@@ -278,7 +271,6 @@
     - vars/aip-defaults.yml
 
   vars:
-    ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   pre_tasks:
@@ -316,7 +308,6 @@
     - vars/aip-defaults.yml
 
   vars:
-    ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   pre_tasks:

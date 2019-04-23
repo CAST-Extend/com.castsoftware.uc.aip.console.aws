@@ -1,19 +1,11 @@
 ---
-- name: Generate a s3 pre-fetch url to aip rest api installer
+- name: Get s3 aip console zip
+  import_role:
+    name: presign_then_get_s3_url
   vars:
-      ansible_connection: local
-  local_action:
-      module: aws_s3
-      bucket: "{{cast_aip_s3_bucket}}" 
-      object: "{{cast_aip_console_zip}}"
-      mode: geturl
-  register: aip_console_s3_url
-
-# Download the installer
-- name: Download aip rest api installer
-  get_url:
-      url: "{{aip_console_s3_url.url}}"
-      dest: "/tmp/AIP_CONSOLE.zip"
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_aip_console_zip}}"
+    dest: "/tmp/AIP_CONSOLE.zip"
 
 - name: Install unzip
   become: yes
@@ -149,10 +141,12 @@
   shell: |
     curl -u cast:cast -X PUT --header 'Cookie: {{cookie.stdout}}' --header 'X-XSRF-TOKEN: {{cookie.stdout.split(' ')[0].split('=')[1][:-1]}}' --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{  "url": "http://{{aip_dashboard_ip}}:8080/CAST-RESTAPI",  "username": "cast",  "integrationKey": "cast"}' 'http://localhost:8081/api/settings/dashboard-settings'
 
+    # There is a bug with internal host definition in console
+    #  So skip this settings to use the default behavior that uses the same database as the console.
 
-- name: Update dashboard measurements settings
-  tags:
-    - aipdashboard
-  shell: |
-    curl -u cast:cast -X PUT --header 'Cookie: {{cookie.stdout}}' --header 'X-XSRF-TOKEN: {{cookie.stdout.split(' ')[0].split('=')[1][:-1]}}' --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{"database":{"host":"{{aip_postgres_ip}}","port":5432,"userName":"operator","password":"CastAIP"},"schemaName":"general_measure"}' 'http://localhost:8081/api/settings/measurement-settings'
-
+    #- name: Update dashboard measurements settings
+    #  tags:
+    #    - aipdashboard
+    #  shell: |
+    #    curl -u cast:cast -X PUT --header 'Cookie: {{cookie.stdout}}' --header 'X-XSRF-TOKEN: {{cookie.stdout.split(' ')[0].split('=')[1][:-1]}}' --header 'Content-Type: application/json' --header 'Accept: application/json' -d '{"database":{"host":"{{aip_postgres_ip}}","port":5432,"userName":"operator","password":"CastAIP"},"schemaName":"general_measure"}' 'http://localhost:8081/api/settings/measurement-settings'
+    #

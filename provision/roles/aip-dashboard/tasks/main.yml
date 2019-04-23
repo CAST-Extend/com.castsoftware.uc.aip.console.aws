@@ -10,10 +10,25 @@
   apt:
     name: tomcat8
 
-#TODO: add parameter to specify the target path (/tmp by default)
-- name: Presigned url to fetch 
+- name: Get s3 aip console zip
   import_role:
-    name: fetch_aip_console
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_aip_console_zip}}"
+    dest:  /tmp/AIP_CONSOLE.zip 
+
+- name: Install unzip
+  become: yes
+  apt:
+    name: unzip
+
+- name: Unzip aip console release
+  become: yes
+  unarchive:
+    src: /tmp/AIP_CONSOLE.zip
+    dest: /tmp/
+    remote_src: yes
 
 - name: Create etc dir for dasboard
   become: yes
@@ -21,11 +36,18 @@
     path: /etc/cast-dashboard
     state: directory
 
-- name: Copy domains.properties
+- name: Copy configuration files 
   become: yes
   copy:
-    src: domains.properties
-    dest: /etc/cast-dashboard/domains.properties
+    src: "{{item}}"
+    dest: "/etc/cast-dashboard/{{item}}"
+  loop:
+    - domains.properties
+    - roles.xml
+    - authorizations.xml
+    - license.key
+    - license.xml
+  notify: Restart Tomcat Service
 
 - name: Copy war descriptor to Catalina localhost
   become: yes
@@ -35,4 +57,21 @@
     owner: tomcat8
     group: tomcat8
   notify: Restart Tomcat Service
+
+# TODO: move to role filebeat
+- name: Install filebeat
+  become: yes
+  import_role:
+      name: geerlingguy.filebeat
+  vars: 
+    - logpath_stdout: /var/log/tomcat8/localhost*
+  when: logcollector_host is defined
+
+- name: Copy filebeat config
+  become: yes
+  template:
+      src: filebeat.yml.j2
+      dest: /etc/filebeat/filebeat.yml
+  notify: restart filebeat
+  when: logcollector_host is defined
 

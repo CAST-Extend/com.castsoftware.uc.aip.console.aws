@@ -11,9 +11,6 @@
   vars_files:
     - vars/aws-defaults.yml
 
-  vars:
-    id_rsa_pub: '{{private_key}}.pub'
-
   tasks:
     - name: Create insubnet sec group
       ec2_group:
@@ -29,14 +26,14 @@
 
     - name: Create key pair
       ec2_key:
-        name: 'key_{{ansible_user_id}}'
-        key_material: "{{ lookup('file', '{{ id_rsa_pub }}') }}"
+        name: aip_controller_key
+        key_material: "{{ lookup('file', '{{ public_key }}') }}"
 
     - name: Bootstrap AWS controller
       tags:
         - aipawscontroller
       ec2:
-        key_name: 'key_{{ansible_user_id}}'
+        key_name: aip_controller_key
         instance_type: t2.nano
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ debian_ami_id }}'
@@ -56,7 +53,7 @@
   gather_facts: no
 
   vars:
-    ansible_ssh_private_key_file: '{{ private_key }}'
+    #ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   pre_tasks:
@@ -67,13 +64,13 @@
     - name: Gather facts for the first time
       setup:
 
-    - name: Create a 2048-bit SSH key for user admin
-      user:
-        name: admin
-        generate_ssh_key: yes
-        ssh_key_bits: 2048
-        ssh_key_file: .ssh/id_rsa
-
+        #    - name: Create a 2048-bit SSH key for user admin
+        #      user:
+        #        name: admin
+        #        generate_ssh_key: yes
+        #        ssh_key_bits: 2048
+        #        ssh_key_file: .ssh/id_rsa
+        #
     - name: Install pip
       become: yes
       apt:

@@ -17,10 +17,9 @@
 #####
 #
 # SSH Linux instances (key only)
-# Private key for ssh on Linux machine
-# ( public key is $PRIVATE_KEY.pub )
+# Public key for ssh on Linux machine
 #####
-#PRIVATE_KEY=~/.ssh/id_rsa
+#PUBLIC_KEY=~/.ssh/id_rsa.pub
 #####
 #
 
@@ -30,9 +29,10 @@
 # playbook to use
 PLAYBOOK=${PLAYBOOK:-provision/aws_aip.yml}
 
-PRIVATE_KEY=${PRIVATE_KEY:?Missing private key}
+# private key
+PUBLIC_KEY=${PUBLIC_KEY:-~/.ssh/id_rsa.pub}
 [[ -n "$WIN_ADMIN_PASSWORD" ]] && EXTRA_VARS="$EXTRA_VARS win_admin_password=$WIN_ADMIN_PASSWORD"
-EXTRA_VARS="${EXTRA_VARS} private_key=$PRIVATE_KEY logcollector_host=172.31.77.11 logcollector_port=5044"
+EXTRA_VARS="${EXTRA_VARS} public_key=$PUBLIC_KEY logcollector_host=172.31.77.11 logcollector_port=5044"
 
 AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:?Missing AWS_ACCESS_KEY_ID} \
 AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:?Missing AWS_SECRET_ACCESS_KEY} \

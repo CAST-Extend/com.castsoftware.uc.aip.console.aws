@@ -13,15 +13,20 @@ AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 AWS_DEFAULT_REGION
 WIN_ADMIN_PASSWORD
-PRIVATE_KEY
+PUBLIC_KEY
 ```
 
 AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY: These are your credentials token from AWS
 AWS_DEFAULT_REGION: AWS region to use.
 WIN_ADMIN_PASSWORD: A windows password to use for Administrator (similar to myTempPassword123!)
-PRIVATE_KEY: Path to private key to use for ssh authentication on Linux machines
+PUBLIC_KEY: Path to public key to use for ssh authentication on Linux machines
 
 One can also export them in the current shell session before calling the scripts
+
+## SSH agent
+
+All launched machines share the same installed public key for authentication ( the one above )
+Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
 
 ## Upload artifacts to s3
 
@@ -40,10 +45,14 @@ aws s3 <path to zip> s3://<bucket>
 
 Creates a ec2 VM to assume the ansible control machine role.
 
-This is optional, but it is much faster inside AWS.
+This is optional, but it is much faster to run inside AWS.
 It also validates the install from scratch of a control machine.
 
-if not using the bootstrap, install the requirements locally with `install_ansible_requirements.sh`
+if not using the bootstrap method, install the requirements locally with `install_ansible_requirements.sh`
+
+Note that for the moment, you must copy the ~/.aip-aws on the controller machine.
+This must be replaced by a AWS IAM Role, and this step will remain there to remind you that!
+
 
 ## Bake the CAIP Windows node - `./aws_aip-bake.sh`
 

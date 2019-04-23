@@ -26,6 +26,8 @@
       url: "{{aip_console_s3_url.url}}"
       dest: C:\AIP_CONSOLE.zip
 
+
+
 - name: Unzip aip console zip 
   win_command: '7z x C:\AIP_CONSOLE.zip -oC:\CAST_AIP_CONSOLE'
   args:

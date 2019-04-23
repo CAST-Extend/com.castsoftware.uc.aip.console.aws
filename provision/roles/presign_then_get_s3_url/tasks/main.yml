@@ -1,0 +1,24 @@
+
+---
+# Fetches a presigned s3 url and download the s3 object on the target machine
+# vars:
+#   bucket: the s3 bucket name
+#   object: the s3 object
+#   dest: the dest path for the dowloaded file
+#
+- name: Generate a s3 pre-fetch url
+  vars:
+      ansible_connection: local
+  local_action:
+      module: aws_s3
+      bucket: "{{bucket}}" 
+      object: "{{object}}"
+      mode: geturl
+  register: s3_presigned_url
+
+- name: Download s3 object on target host
+  get_url:
+      url: "{{s3_presigned_url.url}}"
+      #dest: "/tmp/AIP_CONSOLE.zip"
+      dest: "{{dest}}"
+

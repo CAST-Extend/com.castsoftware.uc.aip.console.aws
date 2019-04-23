@@ -8,7 +8,6 @@
     - vars/aip-defaults.yml
 
   vars:
-    ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   tasks:
