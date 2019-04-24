@@ -1,3 +1,4 @@
+#!/bin/bash
 # shellcheck source=/dev/null
 [[ -f $HOME/.aip-aws ]] && source "$HOME/.aip-aws"
 AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:?Missing AWS_ACCESS_KEY_ID} \
