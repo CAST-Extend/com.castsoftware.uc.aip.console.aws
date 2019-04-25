@@ -42,11 +42,7 @@
     src: "{{item}}"
     dest: "/etc/cast-dashboard/{{item}}"
   loop:
-    - domains.properties
-    - roles.xml
-    - authorizations.xml
     - license.key
-    - license.xml
   notify: Restart Tomcat Service
 
 - name: Copy war descriptor to Catalina localhost
