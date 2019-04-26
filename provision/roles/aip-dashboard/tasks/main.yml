@@ -60,7 +60,7 @@
   import_role:
       name: geerlingguy.filebeat
   vars: 
-    - logpath_stdout: /var/log/tomcat8/localhost*
+      filebeat_create_config: false
   when: logcollector_host is defined
 
 - name: Copy filebeat config

@@ -28,12 +28,31 @@ One can also export them in the current shell session before calling the scripts
 All launched machines share the same installed public key for authentication ( the one above )
 Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
 
+## Artifacts
+
+* CAST_AIP_xxx.zip
+* AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+
+## Patching AIP-Console-xxx.zip
+
+Extract the zip, then extact the CAST-RESTAPI-integrated.war
+
+patch the file WEB-INF/domains.properties with the line
+AAD=Resource1,general_measure
+
+Explanation:
+
+There is an entry in the web.xml for domains-location, which is 
+used as virtual path under the servlet context.
+It's useless to override this property as the resolved path does not exist
+Also this file must have write permission on ther server
+
 ## Upload artifacts to s3
 
 Following artifacts must be uploaded to s3:
 
 * CAST_AIP_xxx.zip
-* AIP-Console-xxx.zip (>1.9 with the CAST-RESTAPI-integrated.war
+* AIP-Console-xxx.zip 
 
 To upload those file, it is recommended to install the aws cli.
 It is much faster and less prone to errors than with the web console.

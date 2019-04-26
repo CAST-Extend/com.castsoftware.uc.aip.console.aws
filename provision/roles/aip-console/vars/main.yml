@@ -1,3 +1,1 @@
 cast_webi_install_dir: /var/lib/aip
-logpath_stdout: "{{cast_webi_install_dir}}/AipConsole/data/logs/*.log"
-filebeat_create_config: false

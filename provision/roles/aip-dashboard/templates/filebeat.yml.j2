@@ -2,6 +2,7 @@ filebeat.inputs:
 - type: log
   paths:
     - /var/log/tomcat8/localhost*
+    - /var/lib/tomcat8/webapps/CAST-RESTAPI/logs/*.log
   tags: ["aip_dashboard"]
   multiline.pattern: '^[[:space:]]'
   multiline.negate: false

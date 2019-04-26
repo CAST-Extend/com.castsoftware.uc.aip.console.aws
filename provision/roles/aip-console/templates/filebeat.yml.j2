@@ -1,7 +1,7 @@
 filebeat.inputs:
 - type: log
   paths:
-    - "{{logpath_stdout}}"
+    - "{{cast_webi_install_dir}}/AipConsole/data/logs/*.log"
   tags: ["aip_console"]
   multiline.pattern: '^[[:space:]]'
   multiline.negate: false
