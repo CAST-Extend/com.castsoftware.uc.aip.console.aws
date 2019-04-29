@@ -45,7 +45,7 @@
       ec2:
         instance_type: t2.small
         vpc_subnet_id: "{{vpc_subnet_id}}"
-        image: "{{ windows_2019_ami_id }}"
+        image: "{{ windows_ami_id }}"
         groups:
             - winsec
         wait: true

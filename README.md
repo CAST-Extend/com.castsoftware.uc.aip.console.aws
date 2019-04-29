@@ -1,12 +1,38 @@
+
+# AIP on demand AWS enabler
+
+Spawns a ready to go AIP platform on AWS.
+
+This set up comprises:
+
+* AIPConsole
+* CAST AIP
+* Dashboard
+* Postgres RDBMS
+
+With CAST AIP being the only component to scale out once the platform is spawned.
+
+The Postgres instance is shared by all components.
+
+## Primary use case - platform with 2 AIP nodes, within minutes
+
+1. Spawn a platform with 2 CAST AIP nodes in a given subnet in AWS, within minutes.
+2. Run projects analysis (manual)
+3. Grab results (manual)
+4. destroy platform
+
+### Future use cases ?
+
+Upload zip of source files to be analyzed through an AIPConsole endpoint and push the result (a Postgres dump?) to AWS s3.
+
 ## Requirements
 
-One must have AWS tokens with permission to launch ec2 instances,
+AWS tokens with permissions to launch ec2 instances,
 create security groups and have read access to a given s3 bucket.
 
-For the moment we also assume a subnet 172.31.64.0/20 exists.
-(private ips are hard coded)
+A VPC subnet id with its CIDR specification. (todo: describe overriding values in aws-defaults.yml)
 
-## Environment variables to set in `~/.aip_aws`
+### Environment variables to set in `~/.aip_aws`
 
 ```bash
 AWS_ACCESS_KEY_ID
@@ -16,24 +42,23 @@ WIN_ADMIN_PASSWORD
 PUBLIC_KEY
 ```
 
-AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY: These are your credentials token from AWS
+AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY: These are your AWS credential tokens
+
 AWS_DEFAULT_REGION: AWS region to use.
-WIN_ADMIN_PASSWORD: A windows password to use for Administrator (similar to myTempPassword123!)
+
+WIN_ADMIN_PASSWORD: Windows Administrator password (similar to myTempPassword123!)
+
 PUBLIC_KEY: Path to public key to use for ssh authentication on Linux machines
 
-One can also export them in the current shell session before calling the scripts
+You can also export those variables in the current shell session instead.
 
-## SSH agent
 
-All launched machines share the same installed public key for authentication ( the one above )
-Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
-
-## Artifacts
+### CAST Artifacts
 
 * CAST_AIP_xxx.zip
 * AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
 
-## Patching AIP-Console-xxx.zip
+#### Patching AIP-Console-xxx.zip
 
 Extract the zip, then extact the CAST-RESTAPI-integrated.war
 
@@ -42,10 +67,9 @@ AAD=Resource1,general_measure
 
 Explanation:
 
-There is an entry in the web.xml for domains-location, which is 
-used as virtual path under the servlet context.
-It's useless to override this property as the resolved path does not exist
-Also this file must have write permission on ther server
+There is a context parameter entry in the web.xml for *domains-location*, which is 
+used as virtual path under the servlet context and cannot be overridden with an external path.
+
 
 ## Upload artifacts to s3
 
@@ -60,7 +84,7 @@ It is much faster and less prone to errors than with the web console.
 ```bash
 aws s3 <path to zip> s3://<bucket>
 ```
-## Optional control VM - ./aws_aip-bootstrap.sh
+## Optional (but recommended) control VM - ./aws_aip-bootstrap.sh
 
 Creates a ec2 VM to assume the ansible control machine role.
 
@@ -71,6 +95,11 @@ if not using the bootstrap method, install the requirements locally with `instal
 
 Note that for the moment, you must copy the ~/.aip-aws on the controller machine.
 This must be replaced by a AWS IAM Role, and this step will remain there to remind you that!
+
+### SSH agent
+
+All launched Linux machines share the same installed public key for authentication ( the one above )
+Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
 
 
 ## Bake the CAIP Windows node - `./aws_aip-bake.sh`
