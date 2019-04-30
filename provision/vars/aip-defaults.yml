@@ -3,7 +3,7 @@ cast_aip_s3_bucket: casthighlight-ci
 
 # CAIP zip is CAST_API_{{caip_aip_version}}.zip
 # CAIP version
-cast_aip_version: 8.3.11.1940
+cast_aip_version: 8.3.12.1966
 cast_aip_zip: "CAST_AIP_{{cast_aip_version}}.zip" 
 
 # AIP Console

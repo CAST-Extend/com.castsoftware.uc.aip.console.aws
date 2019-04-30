@@ -53,8 +53,8 @@
   gather_facts: no
 
   vars:
-    #ansible_ssh_private_key_file: '{{ private_key }}'
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+    aipond_dir: "~"
 
   pre_tasks:
     - name: Wait for SSH to come up
@@ -92,7 +92,7 @@
       become: yes
       synchronize:
         src: ../../
-        dest: /var/lib/aipond
+        dest: "{{aipond_dir}}"
         
     - name: Install pip libraries
       become: yes
