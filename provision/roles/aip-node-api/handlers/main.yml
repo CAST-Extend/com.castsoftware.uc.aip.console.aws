@@ -1,0 +1,12 @@
+# Start node as service
+# TODO: remove the hard coded path to JVM. 
+#       fetch the full path to java from a variable ?
+#       add the path a windows system path when installing java
+- name: Restart aip node
+  win_nssm:
+      name: aip_webi_node
+      application: 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin\java.exe'
+      app_parameters_free_form: -jar -Xmx1024m -Xms256m "{{cast_webi_install_dir}}\\AipNode\\bin\\aip-node-app.jar" --spring.config.location="{{cast_webi_install_dir}}\\AipNode\\data\\aip-node-app.properties" 
+      stdout_file: "{{logpath_stdout}}"
+      stderr_file: "{{logpath_stderr}}"
+      state: started

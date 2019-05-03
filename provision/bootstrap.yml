@@ -54,7 +54,7 @@
 
   vars:
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
-    aipond_dir: "~"
+    aipond_dir: "/home/admin"
 
   pre_tasks:
     - name: Wait for SSH to come up
@@ -106,9 +106,7 @@
 
     - name: Install ansible-requirements
       become: yes
-      shell: ansible-galaxy install --role-file=provision/requirements.yml --roles-path=/etc/ansible/roles
-      args:
-        chdir: /var/lib/aipond
+      shell: "ansible-galaxy install --role-file={{aipond_dir}}/provision/requirements.yml --roles-path=/etc/ansible/roles"
 
   post_tasks:
     - name: Tag stage as init

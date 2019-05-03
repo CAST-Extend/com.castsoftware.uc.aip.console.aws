@@ -1,35 +1,42 @@
 ---
-# Enhanced CAIP Windows node with rest api
-# Install aip rest api on the baked CAIP Windows image
-# ( The baked image is build with roles/aip-node )
-# The baked image has already java, nssm
+# Enhanced install of CAIP from the bake release image:
+#  - AIPConsole node install
+#  - CAIP flat patch is any
 #
 # often overridden variables:
 # - cast_aip_install_dir: directory of CAIP install 
 # - cast_aip_s3_bucket: s3 bucket where release is stored
 # - cast_aip_console_zip: release console zip (also the s3 object key)
+# - cast_flat_aip_zip: the flat zip file (also a s3 object key). If defined the flat is installed.
 
-# A pre-fech url is passed to the instance to download the installer
-- name: Generate a s3 pre-fetch url to aip rest api installer
+
+# In case there is a patch to apply on the release
+- name: Get caip flat from s3
+  import_role:
+    name: presign_then_get_s3_url
   vars:
-      ansible_connection: local
-  local_action:
-      module: aws_s3
-      bucket: "{{cast_aip_s3_bucket}}" 
-      object: "{{cast_aip_console_zip}}"
-      mode: geturl
-  register: aip_console_s3_url
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_flat_aip_zip}}"
+    dest: C:\CAST_FLAT_AIP.zip
+  when: cast_flat_aip_zip is defined
 
-# Download the installer
-- name: Download aip console zip
-  win_get_url:
-      url: "{{aip_console_s3_url.url}}"
-      dest: C:\AIP_CONSOLE.zip
-
-
+# The cast_aip_install_dir has been set accordinlgy
+- name: Unzip caip flat to caip install
+  win_command: '7z x C:\CAST_FLAT_AIP.zip -y'
+  args:
+      chdir: C:\
+  when: cast_flat_aip_zip is defined
+  
+- name: Get aip console node installer from s3
+  import_role:
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_aip_console_zip}}"
+    dest: C:\aip_console.zip
 
 - name: Unzip aip console zip 
-  win_command: '7z x C:\AIP_CONSOLE.zip -oC:\CAST_AIP_CONSOLE'
+  win_command: '7z x C:\aip_console.zip -y -oC:\CAST_AIP_CONSOLE'
   args:
       chdir: C:\
       creates: C:\CAST_AIP_CONSOLE\
@@ -39,13 +46,13 @@
   win_template:
       dest: C:\AIPConsole.defaults
       src: AIPConsole.defaults.j2
+  notify: Restart aip node
 
 # Install the node
 - name: Install aip rest api node
   win_command: java -jar C:\CAST_AIP_CONSOLE\{{cast_aip_console_jar}} -defaults-file AIPConsole.defaults -auto
   args:
       chdir: C:\
-      creates: '{{cast_webi_install_dir}}'
 
 # Create required directories
 - name: Create Upload dir
@@ -91,15 +98,3 @@
 
   when: logcollector_host is defined
 
-# Start node as service
-# TODO: remove the hard coded path to JVM. 
-#       fetch the full path to java from a variable ?
-#       add the path a windows system path when installing java
-- name: Start aip node
-  win_nssm:
-      name: aip_webi_node
-      application: 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin\java.exe'
-      app_parameters_free_form: -jar -Xmx1024m -Xms256m "{{cast_webi_install_dir}}\\AipNode\\bin\\aip-node-app.jar" --spring.config.location="{{cast_webi_install_dir}}\\AipNode\\data\\aip-node-app.properties" 
-      stdout_file: "{{logpath_stdout}}"
-      stderr_file: "{{logpath_stderr}}"
-      state: started

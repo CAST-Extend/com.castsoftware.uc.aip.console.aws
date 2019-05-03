@@ -174,3 +174,8 @@ Registers new nodes with tokens
 
 ## Removing nodes - TODO
 
+### Things to improve
+
+* console node addition: accept disabled nodes 
+* dashboard: domains-location used as virtual path for the context
+* flat packaging: the zip content is rooted at a directory of same name

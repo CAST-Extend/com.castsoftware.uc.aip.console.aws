@@ -29,32 +29,26 @@
         - 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin'
         - 'C:\Program Files\7-zip'
 
-
-# aws_s3 module cannot download on a windows host
-# first get the s3 url then use win_get_url to download the content
-- name: Get caip s3 url
+- name: Get caip zip release from s3
+  import_role:
+    name: presign_then_get_s3_url
   vars:
-      ansible_connection: local
-  local_action:
-      module: aws_s3
-      bucket: "{{cast_aip_s3_bucket}}" 
-      object: "{{cast_aip_zip}}"
-      mode: geturl
-  register: caip_s3_url
-
-- name: Download caip zip
-  win_get_url:
-      url: "{{caip_s3_url.url}}"
-      dest: C:\CAST_AIP.zip
-
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_aip_zip}}"
+    dest: c:\cast_aip.zip
 
 - name: Unzip CAIP
-  win_command: '7z x C:\CAST_AIP.zip -oC:\CAST_AIP'
+  win_command: '7z x C:\CAST_AIP.zip -y -oC:\CAST_AIP'
   args:
       chdir: C:\
       creates: C:\CAST_AIP\
 
-- name : Copy custom setup fixture
+- name: Remove caip zip file
+  win_file:
+      path: C:\CAST_AIP.zip
+      state: absent
+
+- name: Copy custom setup fixture
   win_template:
       dest: C:\CAST_AIP\caip_silent_installation.iis
       src: 'caip_silent_installation.iis.j2'

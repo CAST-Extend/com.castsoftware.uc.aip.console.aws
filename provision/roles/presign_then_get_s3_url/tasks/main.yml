@@ -19,6 +19,12 @@
 - name: Download s3 object on target host
   get_url:
       url: "{{s3_presigned_url.url}}"
-      #dest: "/tmp/AIP_CONSOLE.zip"
       dest: "{{dest}}"
+  when: ansible_os_family != "Windows" 
+
+- name: Download caip zip
+  win_get_url:
+      url: "{{s3_presigned_url.url}}"
+      dest: "{{dest}}"
+  when: ansible_os_family == "Windows"
 
