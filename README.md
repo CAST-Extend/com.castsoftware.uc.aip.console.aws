@@ -1,7 +1,7 @@
 
 # AIP on demand AWS enabler
 
-Spawns a ready to go AIP platform on AWS.
+Ready to go AIP platform on AWS.
 
 This set up comprises:
 
@@ -10,7 +10,7 @@ This set up comprises:
 * Dashboard
 * Postgres RDBMS
 
-With CAST AIP being the only component to scale out once the platform is spawned.
+CAST AIP can scale out once the platform is spawed.
 
 The Postgres instance is shared by all components.
 
@@ -32,31 +32,48 @@ create security groups and have read access to a given s3 bucket.
 
 A VPC subnet id with its CIDR specification. (todo: describe overriding values in aws-defaults.yml)
 
-### Environment variables to set in `~/.aip_aws`
+### AWS credentials and region in ~/.aws-env
+
+Create a ~/.aws-env file with AWS credentials and the default region to operate:
 
 ```bash
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_DEFAULT_REGION
-WIN_ADMIN_PASSWORD
-PUBLIC_KEY
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=
 ```
 
-AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY: These are your AWS credential tokens
+### AIP Environment variables to set in `~/.aip_aws`
 
-AWS_DEFAULT_REGION: AWS region to use.
-
-WIN_ADMIN_PASSWORD: Windows Administrator password (similar to myTempPassword123!)
-
-PUBLIC_KEY: Path to public key to use for ssh authentication on Linux machines
-
+```bash
+# Windows Admin password
+WIN_ADMIN_PASSWORD=DansmaBenzBenzBenz123!
+# Public key for ssh connection on linux instances
+PUBLIC_KEY=~/.ssh/aip.pub
+# AWS s3 bucket where artifacts are stored
+s3_BUCKET=casthighlight-ci
+# API release version
+CAST_AIP_VERSION=8.3.12.1966
+# Use a flat
+CAST_FLAT_AIP_ZIP=8.3.12_Build1958_flat.zip
+# AIPConsole release version and build number
+CAST_AIP_CONSOLE_VERSION=1.9.0
+CAST_AIP_CONSOLE_BUILD_NUMBER=1237
+```
 You can also export those variables in the current shell session instead.
 
-
-### CAST Artifacts
+### CAST Artifacts to be uploaded in the s3 bucket
 
 * CAST_AIP_xxx.zip
 * AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+* x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
+
+To upload those files, it is recommended to install the aws cli.
+
+It is much faster and less error-prone than through the web console.
+
+```bash
+aws s3 <path to zip> s3://<bucket>
+```
 
 #### Patching AIP-Console-xxx.zip
 
@@ -71,19 +88,6 @@ There is a context parameter entry in the web.xml for *domains-location*, which 
 used as virtual path under the servlet context and cannot be overridden with an external path.
 
 
-## Upload artifacts to s3
-
-Following artifacts must be uploaded to s3:
-
-* CAST_AIP_xxx.zip
-* AIP-Console-xxx.zip 
-
-To upload those file, it is recommended to install the aws cli.
-It is much faster and less prone to errors than with the web console.
-
-```bash
-aws s3 <path to zip> s3://<bucket>
-```
 ## Optional (but recommended) control VM - ./aws_aip-bootstrap.sh
 
 Creates a ec2 VM to assume the ansible control machine role.

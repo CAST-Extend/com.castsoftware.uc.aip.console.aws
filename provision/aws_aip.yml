@@ -150,25 +150,9 @@
     - vars/aip-defaults.yml
 
   vars:
+    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
     cast_postgres_port: 5432
     cast_postgres_host: '{{aip_postgres_ip}}'
-
-  pre_tasks:
-    - name: Wait for WinRM to come up
-      tags:
-        - hello
-      wait_for_connection:
-        #delay: 60
-        timeout: 320
-
-    - name: Gather facts for the first time
-      tags:
-        - hello
-      setup:
-
-    - name: Disable Domain firewall
-  vars:
-    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
 
   pre_tasks:
     - name: Wait for SSH to come up

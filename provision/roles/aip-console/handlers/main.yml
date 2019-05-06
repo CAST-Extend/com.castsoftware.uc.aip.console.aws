@@ -3,7 +3,6 @@
   become: yes
   tags:
     - service
-  become: yes
   service:
       name: aip-console.service
       state: restarted
