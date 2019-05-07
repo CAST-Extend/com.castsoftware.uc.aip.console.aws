@@ -178,8 +178,14 @@ Registers new nodes with tokens
 
 ## Removing nodes - TODO
 
-### Things to improve
+## Things to improve
 
-* console node addition: accept disabled nodes 
-* dashboard: domains-location used as virtual path for the context
-* flat packaging: the zip content is rooted at a directory of same name
+### Console node addition: accept disabled nodes 
+
+* Node management api should not check node availability by default.
+  The AIPConsole is not stable with the current update method of the node list
+  (direct sql insert) -> the console must be restarted
+### Dashboard: domains-location used as virtual path for the context
+### Flat packaging: the zip content is rooted at a directory of same name
+* This is annoying when patching the caip install ( Not sure this is the intended usage )
+

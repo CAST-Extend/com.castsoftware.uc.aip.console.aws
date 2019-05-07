@@ -16,13 +16,13 @@
       mode: geturl
   register: s3_presigned_url
 
-- name: Download s3 object on target host
+- name: Download s3 object on linux target
   get_url:
       url: "{{s3_presigned_url.url}}"
       dest: "{{dest}}"
   when: ansible_os_family != "Windows" 
 
-- name: Download caip zip
+- name: Download s3 object on windows target 
   win_get_url:
       url: "{{s3_presigned_url.url}}"
       dest: "{{dest}}"

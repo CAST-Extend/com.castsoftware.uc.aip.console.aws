@@ -121,7 +121,7 @@
 
 - name: Force console restart
   tags:
-    - restart
+    - aipnode
   shell: echo "restart console $(date +%s)"
   notify: Restart aip console service
 
