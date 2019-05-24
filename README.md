@@ -63,9 +63,9 @@ You can also export those variables in the current shell session instead.
 
 ### CAST Artifacts to be uploaded in the s3 bucket
 
-* CAST_AIP_xxx.zip
-* AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
-* x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
+* AIP release: CAST_AIP_xxx.zip
+* AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+* AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
 
 To upload those files, it is recommended to install the aws cli.
 
@@ -97,8 +97,13 @@ It also validates the install from scratch of a control machine.
 
 if not using the bootstrap method, install the requirements locally with `install_ansible_requirements.sh`
 
-Note that for the moment, you must copy the ~/.aip-aws on the controller machine.
+Note that for the moment, you must copy the ~/.aip-aws and ~/.aws-env on the controller machine.
 This must be replaced by a AWS IAM Role, and this step will remain there to remind you that!
+
+```
+scp /home/vagrant/.aip-aws /home/vagrant/.aws-env admin@ec2-100-25-150-6.compute-1.amazonaws.com:~
+```
+
 
 ### SSH agent
 
@@ -108,17 +113,22 @@ Use ssh with agent forwarding if you choose to bounce on the ansible controller 
 
 ## Bake the CAIP Windows node - `./aws_aip-bake.sh`
 
-Since the install of CAIP is *very* long,
-the purpose of baking an image is to reduce the setup duration of nodes,
-  since the AIP install is already done.
+Since the install of CAIP takes forever, 
+the purpose of baking an image with the CAIP release installed is to reduce the setup duration of nodes.
 
-The setup of each node requires only the install of AIP-Console to configure the api access
+The setup of each node requires only a patch application with a flat hotfix and the install of AIPConsole to configure the api access
 
 ### What it does?
 
 Starts a Windows (ami-0410d3d3bd6d555f4) and install CAIP from s3.
 
 After a successful install an AMI image with the same version is created for later use.
+
+## All in one
+
+```
+time ssh -A -o StrictHostKeyChecking=no admin@ec2-100-25-150-6.compute-1.amazonaws.com ./bootstrap.sh
+```
 
 ## Expand - `./aws_aip-expand.sh`
 
