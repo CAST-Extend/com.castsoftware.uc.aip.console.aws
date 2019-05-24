@@ -19,9 +19,7 @@ get_nodes() {
 }
 
 get_applications() {
-
   curl -s -u cast:cast -X GET --header "Cookie: $cookies" --header "X-XSRF-TOKEN: $(echo $cookies | cut -d ' ' -f1 | cut -d '=' -f2)" --header 'Content-Type: application/json' --header 'Accept: application/json' "$console_base_url"/api/applications | python -mjson.tool
-
 }
 
 post_job_add_version_data() {

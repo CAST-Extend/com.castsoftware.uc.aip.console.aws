@@ -3,18 +3,19 @@
 
 Ready to go AIP platform on AWS.
 
+## Features
+
 This set up comprises:
 
 * AIPConsole
 * CAST AIP
 * Dashboard
 * Postgres RDBMS
+* CAST AIP nodes can scale out once the platform is spawed.
 
-CAST AIP can scale out once the platform is spawed.
+**Note: The Postgres instance is shared by all components.**
 
-The Postgres instance is shared by all components.
-
-## Primary use case - platform with 2 AIP nodes, within minutes
+### Primary use case - platform with 2 AIP nodes, within minutes
 
 1. Spawn a platform with 2 CAST AIP nodes in a given subnet in AWS, within minutes.
 2. Run projects analysis (manual)
@@ -27,10 +28,47 @@ Upload zip of source files to be analyzed through an AIPConsole endpoint and pus
 
 ## Requirements
 
-AWS tokens with permissions to launch ec2 instances,
-create security groups and have read access to a given s3 bucket.
+### Get AWS Credentials
 
-A VPC subnet id with its CIDR specification. (todo: describe overriding values in aws-defaults.yml)
+* AWS ceredential tokens 
+* Permissions:
+
+  * Launch ec2 instances.
+  * Create security groups 
+  * RW access to a given s3 bucket.
+
+* A VPC subnet id with its CIDR specification. (REVIEW: hardcoded 172.31.64.0/20)
+
+### Upload CAST Artifacts to a s3 bucket
+
+* AIP release: CAST_AIP_xxx.zip
+* AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+* AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
+
+To upload those files, it is recommended to install the [aws cli](https://docs.aws.amazon.com/cli/index.html).
+
+It is much faster and less error-prone than through the web console.
+
+```bash
+aws s3 cp  <path to zip> s3://<bucket>
+```
+
+#### Patching AIP-Console-xxx.zip
+
+Extract the zip, then extact the CAST-RESTAPI-integrated.war
+
+* Patch the file WEB-INF/domains.properties with the line:
+
+  ```
+  AAD=Resource1,general_measure
+  ```
+
+  Explanation:
+
+  There is a context parameter entry in the web.xml for *domains-location*, which is 
+  used as virtual path under the servlet context and cannot be overridden with an external path.
+
+## Configuration
 
 ### AWS credentials and region in ~/.aws-env
 
@@ -42,7 +80,7 @@ AWS_SECRET_ACCESS_KEY=
 AWS_DEFAULT_REGION=
 ```
 
-### AIP Environment variables to set in `~/.aip_aws`
+### AIP Environment variables to set in ~/.aip_aws
 
 ```bash
 # Windows Admin password
@@ -53,7 +91,7 @@ PUBLIC_KEY=~/.ssh/aip.pub
 s3_BUCKET=casthighlight-ci
 # API release version
 CAST_AIP_VERSION=8.3.12.1966
-# Use a flat
+# Patch with this flat if not commented
 CAST_FLAT_AIP_ZIP=8.3.12_Build1958_flat.zip
 # AIPConsole release version and build number
 CAST_AIP_CONSOLE_VERSION=1.9.0
@@ -61,76 +99,59 @@ CAST_AIP_CONSOLE_BUILD_NUMBER=1237
 ```
 You can also export those variables in the current shell session instead.
 
-### CAST Artifacts to be uploaded in the s3 bucket
+## Usage
 
-* AIP release: CAST_AIP_xxx.zip
-* AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
-* AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
+### Optional (highly recommended) controller VM - ./aws_aip-control.sh
 
-To upload those files, it is recommended to install the aws cli.
-
-It is much faster and less error-prone than through the web console.
-
-```bash
-aws s3 <path to zip> s3://<bucket>
-```
-
-#### Patching AIP-Console-xxx.zip
-
-Extract the zip, then extact the CAST-RESTAPI-integrated.war
-
-patch the file WEB-INF/domains.properties with the line
-AAD=Resource1,general_measure
-
-Explanation:
-
-There is a context parameter entry in the web.xml for *domains-location*, which is 
-used as virtual path under the servlet context and cannot be overridden with an external path.
-
-
-## Optional (but recommended) control VM - ./aws_aip-bootstrap.sh
-
-Creates a ec2 VM to assume the ansible control machine role.
+Creates a EC2 VM to assume the Ansible control node role.
 
 This is optional, but it is much faster to run inside AWS.
 It also validates the install from scratch of a control machine.
 
-if not using the bootstrap method, install the requirements locally with `install_ansible_requirements.sh`
+If not using the AWS control node, install the requirements locally with `install_ansible_requirements.sh`
 
-Note that for the moment, you must copy the ~/.aip-aws and ~/.aws-env on the controller machine.
-This must be replaced by a AWS IAM Role, and this step will remain there to remind you that!
+**Note:**
+
+For the moment, you must copy the ~/.aip-aws and ~/.aws-env to the control node.
+* ~/.aws-env must be replaced by a AWS role for the control node
+* ~/.aip-aws should be copied by the above script
 
 ```
-scp /home/vagrant/.aip-aws /home/vagrant/.aws-env admin@ec2-100-25-150-6.compute-1.amazonaws.com:~
+scp ~/.aip-aws ~/.aws-env admin@ec2-100-25-150-6.compute-1.amazonaws.com:~
 ```
-
 
 ### SSH agent
 
-All launched Linux machines share the same installed public key for authentication ( the one above )
+Linux machines share the same installed public key for authentication ( see `PUBLIC_KEY` in bellow )
+
 Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
 
+```
+ssh -A -o StrictHostKeyChecking=no admin@<contol-node> 'command'
+```
 
-## Bake the CAIP Windows node - `./aws_aip-bake.sh`
+### Bake the CAIP Windows node - `./aws_aip-bake.sh`
 
 Since the install of CAIP takes forever, 
 the purpose of baking an image with the CAIP release installed is to reduce the setup duration of nodes.
 
-The setup of each node requires only a patch application with a flat hotfix and the install of AIPConsole to configure the api access
+The setup of each node may require the application of the _flat_ patch and the install of the AIPConsole for api access.
 
-### What it does?
+#### What it does?
 
 Starts a Windows (ami-0410d3d3bd6d555f4) and install CAIP from s3.
 
-After a successful install an AMI image with the same version is created for later use.
+Upon successful installation of CAIP an AMI image with the same version is created for AIP nodes VMs.
 
-## All in one
+### One shot bootstrap - `./bootstrap.sh`
 
 ```
 time ssh -A -o StrictHostKeyChecking=no admin@ec2-100-25-150-6.compute-1.amazonaws.com ./bootstrap.sh
 ```
 
-## Expand - `./aws_aip-expand.sh`
+#### What it does?
+
+##### Expand - `./aws_aip-expand.sh`
 
 Creates the platform (VMs + Network configuration) to host AIP related artifacts.
 
@@ -146,56 +167,71 @@ Expansion launches a given number of machines for each type:
 2 aipnode
 1 aipconsole
 
-## Init - `./aws_aip-postgres.sh && ./aws_aip-node.sh && && ./aws_aip-dashboard.sh ./aws_aip-console.sh`
+##### Provision- `./aws_aip-postgres.sh && ./aws_aip-node.sh && && ./aws_aip-dashboard.sh ./aws_aip-console.sh`
 
 Initialize the VMs, given its type.
 
-### aippostgres
+###### aippostgres
 Installs postgres and the required roles for aip nodes.
 Restore the dump to use with dashboard
 
-### aipnode
+###### aipnode
 Installs the aip api and fetches the created tokens
 
-### aipdashboard 
+###### aipdashboard 
 Intalls the aip war to use with the console.
 
-### aipconsole
+###### aipconsole
 Installs the aip console and configure known aip nodes and dashboard integration.
 
 
-## Adding new nodes
+### Scale AIP nodes
 
-To add new aip nodes:
+```
+./aws_aip-scale.sh 4
+```
+
+#### What it does?
 
 * adjust total aip node count
 * expand
-* init aip nodes
+* provision aip nodes
 * update the console
 
-### Adding new nodes - expand - `EXTRA_VARS="aip_node_count=3" ./aws_aip-expand.sh -t aipnode` 
+##### expand
 
-### Adding new nodes - init - `./aws_aip-node.sh` 
+Lauch the new EC2 instances with the baked image.
 
-Only newly expanded node are inited.
-The tokens are also fetched.
+##### provision
 
-### Update the console - `./aws_aip-console.sh -t aipnode`
+Only newly expanded node are provisoned and the generated tokens are fetched.
 
-Registers new nodes with tokens
+##### update the console 
 
-### Putting it all together `./aws_aip-scale.sh <node_count>`
+Registers new nodes with tokens with the AIPConsole
 
-## Removing nodes - TODO
+**Note:**
+
+The API for node management in AIPConsole should accept nodes in disabled state
+
+As a workaround, the AIPConsole h2 db is directly injected with such configuration.
+
+### Removing nodes - TODO
+### Platform temination - TODO
 
 ## Things to improve
 
-### Console node addition: accept disabled nodes 
+### AIPConsole node management: accept disabled nodes 
 
 * Node management api should not check node availability by default.
   The AIPConsole is not stable with the current update method of the node list
   (direct sql insert) -> the console must be restarted
+
 ### Dashboard: domains-location used as virtual path for the context
+
+* Manage an external configuration to initialize domains.properties
+
 ### Flat packaging: the zip content is rooted at a directory of same name
+
 * This is annoying when patching the caip install ( Not sure this is the intended usage )
 
