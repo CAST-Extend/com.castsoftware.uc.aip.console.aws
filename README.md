@@ -130,6 +130,10 @@ Use ssh with agent forwarding if you choose to bounce on the ansible controller 
 ssh -A -o StrictHostKeyChecking=no admin@<contol-node> 'command'
 ```
 
+### Big picture
+
+![activities](activities.jpg)
+
 ### Bake the CAIP Windows node - `./aws_aip-bake.sh`
 
 Since the install of CAIP takes forever, 
@@ -230,8 +234,4 @@ As a workaround, the AIPConsole h2 db is directly injected with such configurati
 ### Dashboard: domains-location used as virtual path for the context
 
 * Manage an external configuration to initialize domains.properties
-
-### Flat packaging: the zip content is rooted at a directory of same name
-
-* This is annoying when patching the caip install ( Not sure this is the intended usage )
 
