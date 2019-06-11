@@ -11,7 +11,7 @@ EXTRA_VARS="${EXTRA_VARS} logcollector_host=172.31.77.11 logcollector_port=5044"
 
 # shellcheck disable=SC1090
 [[ -f "$HOME/.aws-env" ]] && source "$HOME/.aws-env"
-AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:?Missing AWS_ACCESS_KEY_ID} \
-AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:?Missing AWS_SECRET_ACCESS_KEY} \
+# shellcheck disable=SC1090
+[[ -f "$HOME/.aws-region" ]] && source "$HOME/.aws-region"
 AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:?Missing AWS_DEFAULT_REGION} \
-ansible-playbook -e "$EXTRA_VARS"  "$@" "$PLAYBOOK"
+ansible-playbook -vvv -e "$EXTRA_VARS"  "$@" "$PLAYBOOK"

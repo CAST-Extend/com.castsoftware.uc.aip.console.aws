@@ -70,17 +70,30 @@ Extract the zip, then extact the CAST-RESTAPI-integrated.war
 
 ## Configuration
 
-### AWS credentials and region in ~/.aws-env
+### AWS credentials, region and role  in `~/.aws-env` and `~/.aws-region`
 
-Create a ~/.aws-env file with AWS credentials and the default region to operate:
+Create a ~/.aws-env file with AWS credentials:
 
 ```bash
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+```
+
+In case you're using a control instance on AWS (see bellow), add a line with the IAM role for the instance.
+
+This role must have the same set of permissions as the user specified with AWS tokens above.
+
+``` bash
+AWS_IAM_ROLE=<role>
+```
+
+Create a ~/.aws-region file with the AWS region to operate (us-east-1 or similar):
+
+```bash
 AWS_DEFAULT_REGION=
 ```
 
-### AIP Environment variables to set in ~/.aip_aws
+### AIP environment variables to set in ~/.aip_aws
 
 ```bash
 # Windows Admin password
@@ -101,34 +114,55 @@ You can also export those variables in the current shell session instead.
 
 ## Usage
 
-### Optional (highly recommended) controller VM - ./aws_aip-control.sh
-
-Creates a EC2 VM to assume the Ansible control node role.
-
-This is optional, but it is much faster to run inside AWS.
-It also validates the install from scratch of a control machine.
-
-If not using the AWS control node, install the requirements locally with `install_ansible_requirements.sh`
-
-**Note:**
-
-For the moment, you must copy the ~/.aip-aws and ~/.aws-env to the control node.
-* ~/.aws-env must be replaced by a AWS role for the control node
-* ~/.aip-aws should be copied by the above script
-
-```
-scp ~/.aip-aws ~/.aws-env admin@ec2-100-25-150-6.compute-1.amazonaws.com:~
-```
-
 ### SSH agent
 
 Linux machines share the same installed public key for authentication ( see `PUBLIC_KEY` in bellow )
 
 Use ssh with agent forwarding if you choose to bounce on the ansible controller machine in AWS.
 
+
+#### Set up SSH-AGENT
+
+Start an agent:
+```
+eval "$(ssh-agent)"
+```
+
+Add the private key (the peer key of the one set in PUBLIC_KEY):
+```
+ssh-add /path/to/key
+```
+
+Now when using a control machine to operate in AWS, enable  ssh forwarding with the `-A` switch:
+
 ```
 ssh -A -o StrictHostKeyChecking=no admin@<contol-node> 'command'
 ```
+
+From now on the full command with the ssh is not always specified. Should be clear in the context.
+
+### Optional (highly recommended) controller VM - ./aws_aip-control.sh
+
+Creates an EC2 instance to assume the Ansible control node role:
+
+```
+./aws_aip-control.sh
+```
+
+This is optional, but it is much faster to run inside AWS.
+It also validates the install from scratch of a control machine.
+
+If not using the AWS control node, install the requirements locally with `install_ansible_requirements.sh`
+
+#### No IAM role? copy the AWS User's credentials to the control machine ( not recommended )
+
+If you don't have a IAM role available, you must copy the AWS User tokens to control instance:
+
+```
+scp ~/.aws-env admin@ec2-XXXXX.compute-1.amazonaws.com:~
+```
+
+This is a security issue and is not recomended.
 
 ### Big picture
 

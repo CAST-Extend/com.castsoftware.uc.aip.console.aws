@@ -33,6 +33,7 @@
       tags:
         - aipawscontroller
       ec2:
+        instance_profile_name: "{{instance_profile_name}}"
         key_name: aip_controller_key
         instance_type: t2.nano
         vpc_subnet_id: '{{vpc_subnet_id}}'
@@ -55,8 +56,9 @@
   vars:
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
     aipond_dir: "/home/admin"
+    home: "{{ lookup('env', 'HOME') }}"
 
-  pre_tasks:
+  tasks:
     - name: Wait for SSH to come up
       wait_for_connection:
         timeout: 320
@@ -64,13 +66,6 @@
     - name: Gather facts for the first time
       setup:
 
-        #    - name: Create a 2048-bit SSH key for user admin
-        #      user:
-        #        name: admin
-        #        generate_ssh_key: yes
-        #        ssh_key_bits: 2048
-        #        ssh_key_file: .ssh/id_rsa
-        #
     - name: Install pip
       become: yes
       apt:
@@ -87,12 +82,25 @@
         name: rsync
 
     - name: Copy ansible files
+      block:
+      - name: Sync ansible files
+        become: yes
+        synchronize:
+          src: ../../
+          dest: "{{aipond_dir}}"
+
+      - name: Copy dot files
+        copy:
+          src: "{{ home }}/.aip-aws"
+          dest: "~/.aip-aws"
+
+      - name: Copy aws region dot file
+        copy:
+          src: "{{ home }}/.aws-region"
+          dest: "~/.aws-region"
+        
       tags:
         - sync
-      become: yes
-      synchronize:
-        src: ../../
-        dest: "{{aipond_dir}}"
         
     - name: Install pip libraries
       become: yes
@@ -108,13 +116,13 @@
       become: yes
       shell: "ansible-galaxy install --role-file={{aipond_dir}}/provision/requirements.yml --roles-path=/etc/ansible/roles"
 
-  post_tasks:
     - name: Tag stage as init
       delegate_to: localhost
       vars:
         ansible_connection: local
       ec2_tag:
-        resource: '{{instance_id}}'
+        resource: "{{instance_id}}"
         tags:
           Stage: init
+
 
