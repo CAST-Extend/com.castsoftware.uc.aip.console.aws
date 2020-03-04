@@ -31,6 +31,8 @@
 #
 # 3. Upload artifacts to a s3 bucket
 #    Cast aip release, Cast aip flat (optional), Cast aip console
+#    Where can I find the artifacts?
+#    > \\productfs01\EngBuild\Releases\
 #
 # 4. Prepare the ssh agent. Typically:
 #    $>eval $(ssh-agent)
@@ -60,6 +62,22 @@
 
 # 5. AIP node, respond to aws_aip-scale.sh
 #
+# Once the above is finished, the ui is available at:
+# 
+# ```
+# http://<ec2-aip-console-public-dns>:8081/ui/index.html
+# ```
+# 
+# The ec2-aip-console-public-dns can be retreived with:
+# 
+# ```
+#  ./aws_inventory.sh --graph aip_console_hosts
+# ```
+
+# Tips for baking aip node
+
+# To apply the aip-node role without creating a new instance:
+# ssh -A admin@ec2-54-237-70-9.compute-1.amazonaws.com './aws_aip-bake.sh -i inventory.aws_ec2.yml --limit aip_node_bake_windows'
 
 # shellcheck disable=SC1090
 [[ -f "$HOME/.aws-env" ]] && source "$HOME/.aws-env"

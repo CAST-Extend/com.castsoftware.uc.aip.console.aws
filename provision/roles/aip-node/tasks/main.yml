@@ -6,6 +6,9 @@
 # - cast_aip_install_dir: directory to install CAIP
 # - cast_aip_s3_bucket: s3 bucket where release is stored
 # - cast_aip_zip: release file name (also the s3 object key)
+# - cast_cmsapi_src_zip: zip of the source code of cmsapi
+# - cast_detect_framework_zip: zip of the detect_framework.zip
+# - cast_cmsapi_ui_jar: internal cast dependency
 
 
 - name: Chocolatey
@@ -14,8 +17,9 @@
 - name: Disable enhanced exit codes.
   raw: Chocolatey feature disable -n useEnhancedExitCodes
 
-- name: Install openjdk8
-  win_chocolatey: name=adoptopenjdk8jre state=present
+  # OpenJDK8 for maven build
+- name: Remove openjdk8
+  win_chocolatey: name=openjdk8 state=present
 
 - name: Install 7zip
   win_chocolatey: name=7zip state=present
@@ -23,19 +27,55 @@
 - name: Install nssm
   win_chocolatey: name=nssm
 
-- name: Add java to path
+- name: Install maven
+  win_chocolatey: name=maven state=present
+
+- name: Update PATH
   win_path:
       elements: 
-        - 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin'
+        - 'C:\Program Files\OpenJDK\openjdk-8u232-b09\bin'
         - 'C:\Program Files\7-zip'
+        - 'C:\ProgramData\chocolatey\lib\maven'
 
-- name: Get caip zip release from s3
+- name: Get AIP flat release from s3
   import_role:
     name: presign_then_get_s3_url
   vars:
     bucket: "{{cast_aip_s3_bucket}}" 
-    object: "{{cast_aip_zip}}"
+    object: "{{cast_aip_flat_zip}}"
     dest: c:\cast_aip.zip
+
+- name: Get CMSAPI source zip
+  import_role:
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_cmsapi_src_zip}}"
+    dest: c:\cast_cmsapi_src.zip
+
+- name: Get CMSAPI UI jar
+  import_role:
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_cmsapi_ui_jar}}"
+    dest: c:\{{cast_cmsapi_ui_jar}}
+
+  # It's better to put the detect_framework.zip in a separate
+  # directory. The reason is that maven copy-resources plugin
+  # runs oom if you put under C:\
+- name: Create directory for detect framework
+  win_file:
+      path: C:\CAST_DETECT_FRAMEWORK
+      state: directory 
+
+- name: Get Framework detector
+  import_role:
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_detect_framework_zip}}"
+    dest: C:\CAST_DETECT_FRAMEWORK\detect_framework.zip
 
 - name: Unzip CAIP
   win_command: '7z x C:\CAST_AIP.zip -y -oC:\CAST_AIP'
@@ -48,14 +88,48 @@
       path: C:\CAST_AIP.zip
       state: absent
 
-- name: Copy custom setup fixture
-  win_template:
-      dest: C:\CAST_AIP\caip_silent_installation.iis
-      src: 'caip_silent_installation.iis.j2'
+- name: Remove CMSAPI src
+  win_file:
+    path: C:\CAST_CMSAPI_SRC
+    state: absent
 
-- name: Install CAIP
-  win_command: setup.bat /s /f1"C:\CAST_AIP\caip_silent_installation.iis" /f2"C:\CAST_AIP\caip_install.log"
+- name: Unzip CMSAPI src zip 
+  win_command: '7z x C:\CAST_CMSAPI_SRC.zip -y -oC:\CAST_CMSAPI_SRC'
   args:
-      chdir: C:\CAST_AIP
-      creates: "{{cast_aip_install_dir}}"
+      chdir: C:\
+      creates: C:\CAST_CMSAPI_SRC
+
+- name: Remove CMSAPI zip file
+  win_file:
+      path: C:\CAST_CMSAPI_SRC.zip
+      state: absent
+
+- name: Install the CAST_CMSAPI_UI jar in m2
+  win_command: mvn.cmd  org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=C:\{{cast_cmsapi_ui_jar}}
+
+  # windows -pl "aip-node-app"
+  # linux -pl "aip-console-app"
+- name: Build CMSAPI docker images
+  win_command: mvn.cmd -pl "aip-node-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK clean install -DskipTests
+  args:
+    chdir: C:\CAST_CMSAPI_SRC
+
+      #- name: Build CMSAPI aip-node-app 
+      #  win_command: mvn.cmd -pl "aip-node-app,aip-console-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK -DskipTests install 
+      #  args:
+      #    chdir: C:\CAST_CMSAPI_SRC
+      #  tags:
+      #    - compile-aip-node
+      #
+
+    #- name: Copy custom setup fixture
+    #  win_template:
+    #      dest: C:\CAST_AIP\caip_silent_installation.iis
+    #      src: 'caip_silent_installation.iis.j2'
+    #
+    #- name: Install CAIP
+    #  win_command: setup.bat /s /f1"C:\CAST_AIP\caip_silent_installation.iis" /f2"C:\CAST_AIP\caip_install.log"
+    #  args:
+    #      chdir: C:\CAST_AIP
+    #      creates: "{{cast_aip_install_dir}}"
 

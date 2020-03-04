@@ -70,6 +70,8 @@
     - vars/aip-defaults.yml
     - vars/aip-win-connection.yml
 
+# make sure pip install "pywinrm>=0.2.2"
+
   pre_tasks:
     - name: Wait for WinRM to come up
       wait_for_connection:

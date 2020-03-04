@@ -5,6 +5,8 @@ cast_aip_s3_bucket: casthighlight-ci
 # CAIP version
 cast_aip_version: 8.3.12.1966
 cast_aip_zip: "CAST_AIP_{{cast_aip_version}}.zip" 
+cast_cmsapi_src_zip: "CAST_CMSAPI_SRC.zip"
+cast_detect_framework_zip: 'detect_framework.zip'
 
 # AIP Console
 # Prefix

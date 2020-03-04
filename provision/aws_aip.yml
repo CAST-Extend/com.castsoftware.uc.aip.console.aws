@@ -52,10 +52,10 @@
     - name: Find latest baked ami for aip node
       tags:
         - aipnode
-      ec2_ami_find:
+      ec2_ami_info:
         owner: self
-        name: aip_node-{{cast_aip_version}}
-        no_result_action: fail
+        filters:
+          name: aip_node-{{cast_aip_version}}
       register: ami_find
 
     - name: Create windows aip node
@@ -64,7 +64,7 @@
       ec2:
         instance_type: t2.large
         vpc_subnet_id: '{{vpc_subnet_id}}'
-        image: '{{ ami_find.results[0].ami_id }}'
+        image: '{{ ami_find.images[0].image_id}}'
         groups:
           - aip_default
         wait: true

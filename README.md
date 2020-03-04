@@ -41,8 +41,26 @@ Upload zip of source files to be analyzed through an AIPConsole endpoint and pus
 
 ### Upload CAST Artifacts to a s3 bucket
 
+#### Some links to CAST Artifacts
+
+* CAST_AIP:
+https://doc.castsoftware.com/display/DOC83/Installing+CAST+AIP
+https://confluence.castsoftware.com/display/download/AIP+8.3+Product+Center
+//Productfs01/EngBuild/Releases/
+
+* AIP_console:
+https://extendng.castsoftware.com/#/extension?id=com.castsoftware.aip.console&version=1.14.2-funcrel
+
+* Framework Detector
+//Productfs01/EngBuild/Releases/FrameworkDetector
+
+
+#### Files to upload to S3
+
 * AIP release: CAST_AIP_xxx.zip
 * AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+* Framework detector
+* CMSAPI source tarball
 * AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
 
 To upload those files, it is recommended to install the [aws cli](https://docs.aws.amazon.com/cli/index.html).
@@ -222,6 +240,20 @@ Intalls the aip war to use with the console.
 ###### aipconsole
 Installs the aip console and configure known aip nodes and dashboard integration.
 
+
+#### How to connecto to AIP console?
+
+Once the above is finished, the ui is available at:
+
+```
+http://<ec2-aip-console-public-dns>:8081/ui/index.html
+```
+
+The ec2-aip-console-public-dns can be retreived with:
+
+```
+ ./aws_inventory.sh --graph aip_console_hosts
+```
 
 ### Scale AIP nodes
 
