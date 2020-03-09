@@ -41,7 +41,11 @@
         dest: "{{aip_win_user_data}}"
 
 
-    - name: Create windows aip node
+    # Creates a Windows instance for baking
+    #  a registry with images from:
+    #  - aip-console-node
+    #  - aip-flat which is an image with a copy of the flat 
+    - name: Windows instance to bake a docker registry 
       ec2:
         instance_type: t2.small
         vpc_subnet_id: "{{vpc_subnet_id}}"
@@ -49,22 +53,31 @@
         groups:
             - winsec
         wait: true
+        volumes:
+          - device_name: /dev/sda1
+            volume_size: 50
         instance_tags:
             Name: aip_node_bake
             Groups: aip_node_bake windows
         user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
       register: bake_host
 
+    # Adds the image to the inventory
+    #  The playbook will continue with the added entry to 
+    #  'aip_node_bake'
     - name: Add bake instance to inventory
       add_host:
         name: "{{ bake_host.instances[0].public_ip }}"
         groups: aip_node_bake
         instance_id: "{{ bake_host.instances[0].id }}"
 
-- hosts: aip_node_bake, aip_node_bake_windows
+- hosts: aip_node_bake
   name: Windows aip nodes
   remote_user: Administrator
   gather_facts: no
+
+  vars:
+    registry_port: 5000
 
   vars_files:
     - vars/aip-defaults.yml
@@ -88,10 +101,263 @@
               - Domain
               - Public
               - Private
-  roles:
-    - { role: aip-node }
+
+  tasks:
+
+    # Base CAIP Windows node
+    # This is used to bake a base Windows image to install the api on.
+    #
+    # often overridden variables:
+    # - cast_aip_install_dir: directory to install CAIP
+    # - cast_aip_s3_bucket: s3 bucket where release is stored
+    # - cast_aip_zip: release file name (also the s3 object key)
+    # - cast_cmsapi_src_zip: zip of the source code of cmsapi
+    # - cast_detect_framework_zip: zip of the detect_framework.zip
+    # - cast_cmsapi_ui_jar: internal cast dependency
+    # - cast_aip_version: the cast flat version
+    
+    
+    - name: Chocolatey
+      win_chocolatey: name=chocolatey
+    
+    - name: Disable enhanced exit codes.
+      raw: Chocolatey feature disable -n useEnhancedExitCodes
+    
+      # OpenJDK8 for maven build
+    - name: Remove openjdk8
+      win_chocolatey: name=openjdk8 state=present
+    
+    - name: Install 7zip
+      win_chocolatey: name=7zip state=present
+    
+    - name: Install nssm
+      win_chocolatey: name=nssm
+    
+    - name: Install maven
+      win_chocolatey: name=maven state=present
+    
+    - name: Update PATH
+      win_path:
+          elements: 
+            - 'C:\Program Files\OpenJDK\openjdk-8u232-b09\bin'
+            - 'C:\Program Files\7-zip'
+            - 'C:\ProgramData\chocolatey\lib\maven'
+    
+    - name: Get AIP flat release from s3
+      import_role:
+        name: presign_then_get_s3_url
+      vars:
+        bucket: "{{cast_aip_s3_bucket}}" 
+        object: "{{cast_aip_flat_zip}}"
+        dest: c:\cast_aip.zip
+    
+    - name: Get CMSAPI source zip
+      import_role:
+        name: presign_then_get_s3_url
+      vars:
+        bucket: "{{cast_aip_s3_bucket}}" 
+        object: "{{cast_cmsapi_src_zip}}"
+        dest: c:\cast_cmsapi_src.zip
+    
+    - name: Get CMSAPI UI jar
+      import_role:
+        name: presign_then_get_s3_url
+      vars:
+        bucket: "{{cast_aip_s3_bucket}}" 
+        object: "{{cast_cmsapi_ui_jar}}"
+        dest: c:\{{cast_cmsapi_ui_jar}}
+    
+      # It's better to put the detect_framework.zip in a separate
+      # directory. The reason is that maven copy-resources plugin
+      # runs oom if you put under C:\
+    - name: Create directory for detect framework
+      win_file:
+          path: C:\CAST_DETECT_FRAMEWORK
+          state: directory 
+    
+    - name: Get Framework detector
+      import_role:
+        name: presign_then_get_s3_url
+      vars:
+        bucket: "{{cast_aip_s3_bucket}}" 
+        object: "{{cast_detect_framework_zip}}"
+        dest: C:\CAST_DETECT_FRAMEWORK\detect_framework.zip
+    
+    - name: Unzip CAIP
+      win_command: '7z x C:\CAST_AIP.zip -y -oC:\CAST_AIP'
+      args:
+          chdir: C:\
+          creates: C:\CAST_AIP\
+    
+    - name: Remove caip zip file
+      win_file:
+          path: C:\CAST_AIP.zip
+          state: absent
+    
+    - name: Remove CMSAPI src
+      win_file:
+        path: C:\CAST_CMSAPI_SRC
+        state: absent
+    
+    - name: Unzip CMSAPI src zip 
+      win_command: '7z x C:\CAST_CMSAPI_SRC.zip -y -oC:\CAST_CMSAPI_SRC'
+      args:
+          chdir: C:\
+          creates: C:\CAST_CMSAPI_SRC
+    
+    - name: Remove CMSAPI zip file
+      win_file:
+          path: C:\CAST_CMSAPI_SRC.zip
+          state: absent
+    
+    - name: Install the CAST_CMSAPI_UI jar in m2
+      win_command: mvn.cmd  org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=C:\{{cast_cmsapi_ui_jar}}
+    
+    # Docker - check version
+    - name: Docker version
+      win_command: docker version
+      tags:
+        - docker
+
+    # Docker configuration - add daemon.json
+    #  - insecure registry 
+    #  - storage
+    - name: Configure docker daemon
+      win_template:
+        src: docker_daemon.json
+        dest: C:\ProgramData\docker\config\daemon.json
+      tags:
+        - docker
+    
+    # Docker configuration
+    #  - restart daemon
+    - name: Restart docker daemon
+      win_command: powershell Restart-Service docker
+      tags:
+        - docker
+
+    # Docker configuration
+    #  - Create local registry directory
+    - name: Create directory for registry
+      win_file:
+          path: C:\registry
+          state: directory  
+      tags:
+        - docker
+    
+    # Docker configuration
+    #  - Start local registry
+    - name: Run insecure registry
+      win_command: "docker run -d -p {{registry_port}}:{{registry_port}} --restart=always --name registry -v C:\\registry:C:\\registry stefanscherer/registry-windows:2.6.2"
+      tags:
+        - docker
+    
+    
+    # Docker build
+    #   - build aip-node-app
+    #
+    # # windows -pl "aip-node-app"
+    # # linux -pl "aip-console-app"
+    - name: Build CMSAPI docker images
+      win_command: mvn.cmd -pl "aip-node-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK clean install -DskipTests
+      args:
+        chdir: C:\CAST_CMSAPI_SRC
+    
+    # Docker build
+    #  - build a image with AIP flat and CastGlobalSettings configuration
+    - name: Copy Dockerfile to Build AIP flat with configuration
+      win_template:
+        src: Dockerfile_aip_flat.j2
+        dest: C:\CAST_AIP\Dockerfile
+    
+    - name: Copy CastGlobalSettings.ini in AIP flat
+      win_template:
+        src: CastGlobalSettings.ini.j2
+        dest: C:\CAST_AIP\CastGlobalSettings.ini
+
+    - name: Build flat docker image
+      win_command: docker build -t castsoftware/aip-flat .
+      args:
+        chdir: C:\CAST_AIP
+    
+    - name: Tag flat docker image with aip version
+      win_command: "docker tag castsoftware/aip-flat castsoftware/aip-flat:{{cast_aip_version}}"
+
+    - name: Tagging aip-node with local registry prefix and aip version 
+      win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+
+    - name: Tagging aip-node with local registry prefix and latest
+      win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
+
+    - name: Tagging aip-flat with local registry prefix and aip version
+      win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+
+    - name: Tagging aip-flat with local registry prefix and latest
+      win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+
+    - name: Push aip-node with aip version tag
+      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+
+    - name: Push aip-node with latest tag
+      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
+
+    - name: Push aip-flat with aip version tag 
+      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+
+    - name: Push aip-flat with latest tag 
+      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+
+          #- name: Build CMSAPI aip-node-app 
+          #  win_command: mvn.cmd -pl "aip-node-app,aip-console-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK -DskipTests install 
+          #  args:
+          #    chdir: C:\CAST_CMSAPI_SRC
+          #  tags:
+          #    - compile-aip-node
+          #
+    
+        #- name: Copy custom setup fixture
+        #  win_template:
+        #      dest: C:\CAST_AIP\caip_silent_installation.iis
+        #      src: 'caip_silent_installation.iis.j2'
+        #
+        #- name: Install CAIP
+        #  win_command: setup.bat /s /f1"C:\CAST_AIP\caip_silent_installation.iis" /f2"C:\CAST_AIP\caip_install.log"
+        #  args:
+        #      chdir: C:\CAST_AIP
+        #      creates: "{{cast_aip_install_dir}}"
 
   post_tasks:
+    # AMI management for the registry
+    #
+    # Find previous AMI for the same AIP version
+    # Deregister and delete snapshot
+    # Create the a new AMI for the same AIP version
+    # 
+
+    # Find current image with same aip version
+    - name: Find latest baked ami with same cast aip version 
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami_info:
+        owner: self
+        filters:
+          name: aip_node-{{cast_aip_version}}
+      register: ami_find
+
+    # Clean 
+    - name: Deregister the images with same name 
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami:
+        image_id: "{{item.image_id}}"
+        delete_snapshot: yes
+        state: absent
+        wait: yes
+      loop: "{{ami_find.images}}"
+
+    # Register a new image with the same AIP version
     - name: Create ami image from instance
       # delegate the task to the localhost
       # ansible_connection: local has to be set as it is already set at the playbook level.
@@ -101,10 +367,12 @@
       ec2_ami:
         instance_id: "{{instance_id}}"
         wait: yes
+        wait_timeout: 1800
         name: "aip_node-{{cast_aip_version}}"
         tags:
-            Name: aip_node
-            Stage: bake0
+            Name: aip_registry
+            Stage: bake
+            Seq: 0
   
     - name: Terminate instance
       delegate_to: localhost

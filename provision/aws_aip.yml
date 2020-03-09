@@ -18,12 +18,9 @@
     - vars/aws-defaults.yml
     - vars/aip-defaults.yml
 
-  vars:
-    aip_node_count: 2
-
   tasks:
 
-    # TODO: The same group is defined in bootstrap.yml
+    # TODO: The same groups are defined in bootstrap.yml
     - name: Create insubnet sec group
       ec2_group:
         name: aip_default 
@@ -35,6 +32,22 @@
             ports:
               - 22
             cidr_ip: 0.0.0.0/0
+
+    - name: Create sec group for WinRM and RDP
+      ec2_group:
+          name: winsec
+          description: WinRM RDP security group
+          rules:
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0
+                rule_desc: WinRM-HTTPS
 
     - name: Open http port for aip console
       tags:
@@ -49,6 +62,18 @@
             cidr_ip: 0.0.0.0/0
             rule_desc: allow http port for aip console
 
+
+- hosts: localhost:&expand-aip-node
+  connection: local
+
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
+
+  vars:
+    aip_node_count: 1
+
+  tasks:
     - name: Find latest baked ami for aip node
       tags:
         - aipnode
@@ -67,6 +92,11 @@
         image: '{{ ami_find.images[0].image_id}}'
         groups:
           - aip_default
+          - winsec
+        volumes:
+          - device_name: /dev/sda1
+            volume_size: 100
+
         wait: true
         exact_count: '{{aip_node_count}}'
         count_tag:
@@ -76,6 +106,15 @@
           Name: aip_node
           Groups: aip_node_hosts
       register: aip_node
+
+- hosts: localhost:&expand-posgres
+  connection: local
+
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
+
+  tasks:
 
     - name: Create aip postgres nodes
       tags:
@@ -95,6 +134,14 @@
           Groups: aip_postgres_hosts
       when: "aip_postgres_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
+- hosts: localhost:&expand-dashboard
+  connection: local
+
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
+
+  tasks:
     - name: Create aip dashboard nodes
       tags:
         - aipdashboard
@@ -113,6 +160,14 @@
           Groups: aip_dashboard_hosts
       when: "aip_dashboard_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
+- hosts: localhost:&expand-console
+  connection: local
+
+  vars_files:
+    - vars/aws-defaults.yml
+    - vars/aip-defaults.yml
+
+  tasks:
     - name: Create aip console nodes
       tags:
         - aipconsole
@@ -132,9 +187,6 @@
           Groups: aip_console_hosts
       when: "aip_console_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
-    - name: Set stage
-      set_fact:
-        stage: expand
 
 #############
 #AIP POSTGRES
@@ -228,8 +280,14 @@
           - Public
           - Private
 
-  roles:
-    - { role: aip-node-api }
+    # In case the root ebs has changed, resize the C partition
+    - name: Resize previously created partition to it's maximum size
+      win_partition:
+        drive_letter: C
+        partition_size: -1
+
+            #roles:
+            # - { role: aip-node-api }
 
   post_tasks:
     - name: Tag stage as init

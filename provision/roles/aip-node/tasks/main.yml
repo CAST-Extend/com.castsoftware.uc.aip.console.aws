@@ -9,6 +9,7 @@
 # - cast_cmsapi_src_zip: zip of the source code of cmsapi
 # - cast_detect_framework_zip: zip of the detect_framework.zip
 # - cast_cmsapi_ui_jar: internal cast dependency
+# - cast_aip_version: the cast flat version
 
 
 - name: Chocolatey
@@ -107,6 +108,17 @@
 - name: Install the CAST_CMSAPI_UI jar in m2
   win_command: mvn.cmd  org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=C:\{{cast_cmsapi_ui_jar}}
 
+- name: Configure docker daemon
+  win_template:
+    src: docker_daemon.jsom
+    dest: C:\ProgramData\docker\config\daemon.json
+
+- name: Restart docker daemon
+  win_command: powershell Restart-Service docker
+
+- name: Docker version
+  win_command: docker version
+
   # windows -pl "aip-node-app"
   # linux -pl "aip-console-app"
 - name: Build CMSAPI docker images
@@ -114,6 +126,34 @@
   args:
     chdir: C:\CAST_CMSAPI_SRC
 
+  # Prepare to create a image with flat + configuration
+- name: Copy Dockerfile to Build AIP flat with configuration
+  win_template:
+    src: Dockerfile_aip_flat.j2
+    dest: C:\CAST_AIP\Dockerfile
+
+- name: Copy CastGlobalSettings.ini in AIP flat
+  win_template:
+    src: CastGlobalSettings.ini.j2
+    dest: C:\CAST_AIP\CastGlobalSettings.ini
+
+- name: Build flat docker image
+  win_command: docker build -t castsoftware/aip-flat .
+  args:
+    chdir: C:\CAST_AIP
+
+- name: Tag flat docker image
+  win_command: "docker tag castsoftware/aip-flat castsoftware/aip-flat:{{cast_aip_version}}"
+    
+
+- name: Create a folder for registry
+  win_file:
+      path: C:\regiatry
+      state: directory 
+
+
+- name: Run insecure registry
+  win_command: docker run -d -p 5000:5000 --restart=always --name registry -v C:\registry:C:\registry stefanscherer/registry-windows:2.6.2
       #- name: Build CMSAPI aip-node-app 
       #  win_command: mvn.cmd -pl "aip-node-app,aip-console-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK -DskipTests install 
       #  args:

@@ -1,0 +1,6 @@
+{
+  "insecure-registries": ["{{aip_registry_ip}}:{{aip_registry_port}}"],
+  "storage-opts": [
+    "size=20G"
+  ]
+}

@@ -24,3 +24,5 @@ cast_aip_console_jar: "{{cast_aip_console}}-{{cast_aip_console_version}}-{{cast_
 # Install base dir for cast prooducts on Windows
 cast_opt: 'C:\\OPT'
 cast_aip_install_dir: '{{cast_opt}}\\CAST_AIP'
+cast_cmsapi_ui_jar: CAST-CMSAPI-UI-1.15.0-SNAPSHOT.jar
+cast_aip_flat_zip: 8.3.20_Build2253_flat_for_customer.7z

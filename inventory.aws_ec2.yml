@@ -4,7 +4,7 @@ regions:
     - us-east-1
 keyed_groups:
     - key: tags.Groups
-      separator:  ''
+      separator: ''
 
     - key: tags.Stage
       separator: ''

@@ -1,0 +1,15 @@
+- hosts: localhost
+  connection: local
+
+  vars:
+    ec2_ami_name_def: test
+
+
+  tasks:
+    - name: gather information about an AMI with 'AMI Name' equal to foobar
+      ec2_ami_info:
+        owners: self
+        filters:
+          name: "{{ec2_ami_name}}" 
+      register:
+

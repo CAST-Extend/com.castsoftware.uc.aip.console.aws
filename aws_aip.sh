@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 # Set the AWS credentials and region in ~/.aws-env
 
 # playbook to use

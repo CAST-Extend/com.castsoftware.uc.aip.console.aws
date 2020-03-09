@@ -1,0 +1,61 @@
+---
+# Base CAIP Windows node
+# This is used to bake a base Windows image to install the api on.
+#
+# often overridden variables:
+# - cast_aip_install_dir: directory to install CAIP
+# - cast_aip_s3_bucket: s3 bucket where release is stored
+# - cast_aip_zip: release file name (also the s3 object key)
+
+
+- name: Chocolatey
+  win_chocolatey: name=chocolatey
+
+- name: Disable enhanced exit codes.
+  raw: Chocolatey feature disable -n useEnhancedExitCodes
+
+- name: Install openjdk8
+  win_chocolatey: name=adoptopenjdk8jre state=present
+
+- name: Install 7zip
+  win_chocolatey: name=7zip state=present
+
+- name: Install nssm
+  win_chocolatey: name=nssm
+
+- name: Add java to path
+  win_path:
+      elements: 
+        - 'C:\Program Files\AdoptOpenJDK\jdk8u202-b08-jre\bin'
+        - 'C:\Program Files\7-zip'
+
+- name: Get caip zip release from s3
+  import_role:
+    name: presign_then_get_s3_url
+  vars:
+    bucket: "{{cast_aip_s3_bucket}}" 
+    object: "{{cast_aip_zip}}"
+    dest: c:\cast_aip.zip
+
+- name: Unzip CAIP
+  win_command: '7z x C:\CAST_AIP.zip -y -oC:\CAST_AIP'
+  args:
+      chdir: C:\
+      creates: C:\CAST_AIP\
+
+- name: Remove caip zip file
+  win_file:
+      path: C:\CAST_AIP.zip
+      state: absent
+
+- name: Copy custom setup fixture
+  win_template:
+      dest: C:\CAST_AIP\caip_silent_installation.iis
+      src: 'caip_silent_installation.iis.j2'
+
+- name: Install CAIP
+  win_command: setup.bat /s /f1"C:\CAST_AIP\caip_silent_installation.iis" /f2"C:\CAST_AIP\caip_install.log"
+  args:
+      chdir: C:\CAST_AIP
+      creates: "{{cast_aip_install_dir}}"
+
