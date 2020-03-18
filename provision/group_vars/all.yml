@@ -1,3 +1,26 @@
+# windows 2019
+# windows_ami_id: ami-0410d3d3bd6d555f4
+# => Not supported by CAST AIP
+
+# windows 2016
+#windows_ami_id: ami-0a125a00b5b736e77
+
+# windows 2019 with containers
+windows_ami_id: ami-062b1528dfe4a5f66
+debian_ami_id: ami-017b679ef539c260f
+vpc_subnet_id: subnet-906775af
+# used to grant postgres access
+subnet_cidr: 172.31.64.0/20
+aip_aws_controller_ip: 172.31.66.10
+aip_postgres_ip: 172.31.66.11
+aip_console_ip: 172.31.66.12
+aip_dashboard_ip: 172.31.66.13
+aip_win_registry_ip: 172.31.66.14
+aip_linux_registry_ip: 172.31.66.15
+
+
+registry_port: 5000
+
 # S3 bucket to fetch artifacts
 cast_aip_s3_bucket: casthighlight-ci
 

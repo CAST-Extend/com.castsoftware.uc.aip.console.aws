@@ -1,16 +1,13 @@
 ---
 # Bootstrap a AWS ec2 controller for AIP related playbooks.
 #
-# This is an optional step. All playbooks can be run from 
-# the operator box.
+# It creates all common resource for other playbooks:
+# - The subnet security groups
+# - The public key 
 #
-# Running inside AWS is faster though.
 #
 - hosts: localhost:&bootstrap
   connection: local
-  vars_files:
-    - vars/aws-defaults.yml
-
   tasks:
     - name: Create insubnet sec group
       ec2_group:
@@ -24,15 +21,30 @@
               - 22
             cidr_ip: 0.0.0.0/0
 
+    - name: Create sec group for WinRM and RDP
+      ec2_group:
+          name: winsec
+          description: WinRM RDP security group
+          rules:
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0
+                rule_desc: WinRM-HTTPS
+
     - name: Create key pair
       ec2_key:
         name: aip_controller_key
         key_material: "{{ lookup('file', '{{ public_key }}') }}"
 
     - name: Bootstrap AWS controller
-      tags:
-        - aipawscontroller
       ec2:
+        # role of the instance
         instance_profile_name: "{{instance_profile_name}}"
         key_name: aip_controller_key
         instance_type: t2.nano
@@ -46,15 +58,14 @@
           Stage: expand
           Name: aip_aws_controller
           Groups: aip_aws_controller_hosts
+          Base: aws_linux
       when: "aip_aws_controller_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
 
-- hosts: aip_aws_controller_hosts
+- hosts: aip_aws_controller_hosts:&aws_linux
   name: AIP Aws controller node
-  remote_user: admin
   gather_facts: no
 
   vars:
-    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
     aipond_dir: "/home/admin"
     home: "{{ lookup('env', 'HOME') }}"
 

@@ -15,5 +15,7 @@ EXTRA_VARS="win_admin_password=$WIN_ADMIN_PASSWORD"
 # In case a flat is used, the cast_aip_install_dir is changed accordingly
 [[ -n "$CAST_FLAT_AIP_ZIP" ]] && EXTRA_VARS="$EXTRA_VARS cast_flat_aip_zip=$CAST_FLAT_AIP_ZIP cast_aip_install_dir=C:/${CAST_FLAT_AIP_ZIP%%.zip}"
 
+#EXTRA_VARS="$EXTRA_VARS" \
+#    ./aws_aip.sh -i inventory.aws_ec2.yml --limit "aip_*_registry:&expand" "$@"
 EXTRA_VARS="$EXTRA_VARS" \
-    ./aws_aip.sh -i inventory.aws_ec2.yml --limit "aip_node_hosts:&expand" "$@"
+    ./aws_aip.sh -i inventory.aws_ec2.yml  "$@"

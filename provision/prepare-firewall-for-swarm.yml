@@ -1,0 +1,48 @@
+- name: Allow Ping requests on Windows nodes (which is by default disabled in Windows Server 2016)
+  win_firewall_rule:
+    name: Allow incoming ping requests
+    action: allow
+    direction: in
+    protocol: "icmpv4:8"
+    state: present
+    enabled: yes
+
+- name: Allow connection to TCP port 2377 for cluster management communications
+  win_firewall_rule:
+    name: Port 2377
+    localport: 2377
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: yes
+
+  # Container networking needs more open ports later, see https://docs.docker.com/engine/swarm/ingress/
+- name: Open ports for later Docker Swarm Container network discovery on TCP and UDP port 7946
+  win_firewall_rule:
+    name: Port 7946
+    localport: 7946
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: yes
+
+- name: Open ports for later Docker Swarm Container network discovery on UDP port 4789
+  win_firewall_rule:
+    name: Port 4789
+    localport: 4789
+    action: allow
+    direction: in
+    protocol: udp
+    state: present
+    enabled: yes
+
+  # temporarily disabling the complete firewall to prevent issues
+- name: Disable firewall for Domain, Public and Private profiles
+  win_firewall:
+    state: disabled
+    profiles:
+    - Domain
+    - Private
+    - Public

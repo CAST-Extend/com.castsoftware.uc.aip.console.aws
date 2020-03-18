@@ -1,0 +1,8 @@
+{
+  "insecure-registries": ["{{private_ip_address}}:{{registry_port}}"],
+  "storage-opts": [
+    "size=20G"
+  ],
+  "labels": ["os=windows"]
+
+}

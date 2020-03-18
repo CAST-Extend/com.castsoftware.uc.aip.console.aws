@@ -11,43 +11,11 @@
 #
 # Once an instance with "Stage: expand" has the matching playbook
 #   applied, it is tagged with "Stage: init"
+
 - hosts: localhost:&expand
   connection: local
 
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
-
   tasks:
-
-    # TODO: The same groups are defined in bootstrap.yml
-    - name: Create insubnet sec group
-      ec2_group:
-        name: aip_default 
-        description: Allow in group and ssh communication
-        rules:
-          - proto: all
-            group_name: aip_default
-          - proto: tcp
-            ports:
-              - 22
-            cidr_ip: 0.0.0.0/0
-
-    - name: Create sec group for WinRM and RDP
-      ec2_group:
-          name: winsec
-          description: WinRM RDP security group
-          rules:
-              - proto: tcp
-                ports:
-                    - 3389
-                cidr_ip: 0.0.0.0/0
-                rule_desc: RDP
-              - proto: tcp
-                ports:
-                    - 5986
-                cidr_ip: 0.0.0.0/0
-                rule_desc: WinRM-HTTPS
 
     - name: Open http port for aip console
       tags:
@@ -63,56 +31,80 @@
             rule_desc: allow http port for aip console
 
 
-- hosts: localhost:&expand-aip-node
+- hosts: localhost:&expand-aip-win-registry
   connection: local
 
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
-
   vars:
-    aip_node_count: 1
+    aip_tenancy: aipcustomer1
 
   tasks:
-    - name: Find latest baked ami for aip node
-      tags:
-        - aipnode
+    - name: Find latest baked ami for aip windows registry
       ec2_ami_info:
         owner: self
         filters:
-          name: aip_node-{{cast_aip_version}}
+          name: aip_win_registry-{{cast_aip_version}}
       register: ami_find
 
-    - name: Create windows aip node
-      tags:
-        - aipnode
+    - name: Create windows registry 
       ec2:
-        instance_type: t2.large
+        instance_type: t2.medium
         vpc_subnet_id: '{{vpc_subnet_id}}'
         image: '{{ ami_find.images[0].image_id}}'
         groups:
           - aip_default
           - winsec
-        volumes:
-          - device_name: /dev/sda1
-            volume_size: 100
-
         wait: true
-        exact_count: '{{aip_node_count}}'
+        private_ip: '{{aip_win_registry_ip}}'
+        exact_count: 1
         count_tag:
-          Name: aip_node
+          Name: "{{aip_tenancy}}__aip_win_registry" 
         instance_tags:
+          Base: aws_windows
+          Tenancy: "{{aip_tenancy}}"
           Stage: expand
-          Name: aip_node
-          Groups: aip_node_hosts
-      register: aip_node
+          Name: "{{aip_tenancy}}__aip_win_registry" 
+          Groups: aip_win_registry
+          Swarm: swarm_worker
+      register: aip_win_registry
+
+- hosts: localhost:&expand-aip-linux-registry
+  connection: local
+
+  vars:
+    aip_tenancy: aipcustomer1
+
+  tasks:
+    - name: Find latest baked ami for aip linux registry
+      ec2_ami_info:
+        owner: self
+        filters:
+          name: aip_linux_registry-{{cast_aip_version}}
+      register: ami_find
+
+    - name: Create linux registry 
+      ec2:
+        instance_type: t2.small
+        key_name: aip_controller_key
+        vpc_subnet_id: '{{vpc_subnet_id}}'
+        image: '{{ ami_find.images[0].image_id}}'
+        groups:
+          - aip_default
+        wait: true
+        private_ip: '{{aip_linux_registry_ip}}'
+        exact_count: 1
+        count_tag:
+          Name: "{{aip_tenancy}}__aip_linux_registry" 
+        instance_tags:
+          Base: aws_linux
+          Tenancy: "{{aip_tenancy}}"
+          Stage: expand
+          Name: "{{aip_tenancy}}__aip_linux_registry" 
+          Groups: aip_linux_registry
+          Swarm: swarm_master
+      register: aip_linux_registry
 
 - hosts: localhost:&expand-posgres
   connection: local
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
 
   tasks:
 
@@ -137,10 +129,6 @@
 - hosts: localhost:&expand-dashboard
   connection: local
 
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
-
   tasks:
     - name: Create aip dashboard nodes
       tags:
@@ -162,10 +150,6 @@
 
 - hosts: localhost:&expand-console
   connection: local
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
 
   tasks:
     - name: Create aip console nodes
@@ -196,10 +180,6 @@
   name: Postgres aip nodes
   remote_user: admin
   gather_facts: no
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
 
   vars:
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
@@ -241,19 +221,12 @@
         tags:
           Stage: init
 
-###########
-# AIP NODES
-###########
-
-- hosts: aip_node_hosts
-  name: Windows aip nodes
-  remote_user: Administrator
+#######################
+# AIP NODES - REGISTRY
+#######################
+- hosts: aip_win_*:&aws_windows
+  name: Common configuration for windows instances
   gather_facts: no
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
-    - vars/aip-win-connection.yml
 
   vars:
     cast_postgres_port: 5432
@@ -261,24 +234,15 @@
 
   pre_tasks:
     - name: Wait for WinRM to come up
-      tags:
-        - hello
       wait_for_connection:
         #delay: 60
         timeout: 320
 
     - name: Gather facts for the first time
-      tags:
-        - hello
       setup:
 
-    - name: Disable Domain firewall
-      win_firewall:
-        state: disabled
-        profiles:
-          - Domain
-          - Public
-          - Private
+    - name: Configure windows firewall for docker swarm
+      import_tasks: prepare-firewall-for-swarm.yml
 
     # In case the root ebs has changed, resize the C partition
     - name: Resize previously created partition to it's maximum size
@@ -286,8 +250,17 @@
         drive_letter: C
         partition_size: -1
 
-            #roles:
-            # - { role: aip-node-api }
+  handlers:
+    - name: Restart docker daemon
+      win_command: powershell Restart-Service docker
+
+
+  tasks:
+    - name: Configure docker daemon
+      win_template:
+        src: docker_daemon_win.json
+        dest: C:\ProgramData\docker\config\daemon.json
+      notify: Restart docker daemon
 
   post_tasks:
     - name: Tag stage as init
@@ -298,6 +271,139 @@
         resource: '{{instance_id}}'
         tags:
           Stage: init
+          Swarm: swarm_worker
+
+- hosts: aip_linux_*:&aws_linux
+  name: Common configuration for linux instances
+  gather_facts: no
+
+  pre_tasks:
+    - name: Wait for connection
+      wait_for_connection:
+        #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+  handlers:
+    - name: Restart docker service
+      become: yes
+      service:
+        name: docker
+        state: restarted
+
+
+  tasks:
+    - name: Docker daemon configuration
+      become: yes
+      block:
+      - name: Apply template for daemon.json
+        template:
+          src: docker_daemon_linux.json
+          dest: /etc/docker/daemon.json
+        notify: Restart docker service
+
+  post_tasks:
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: '{{instance_id}}'
+        tags:
+          Stage: init
+
+
+- hosts: swarm_master:&aws_linux
+  name: Configuration for linux swarm master
+  gather_facts: no
+  tasks: 
+
+    - name: List swarm managers
+      shell: docker node ls -q -f "role=manager"
+      register: swarm_managers
+      ignore_errors: yes 
+
+    - name: Init swarm master
+      shell: "docker swarm init --advertise-addr {{private_ip_address}}"
+      when: swarm_managers and swarm_managers.stdout == ""
+
+    - name: Get swarm token
+      shell: "docker swarm join-token -q worker"
+      register: swarm_token
+
+
+    - name: List portainer container
+      shell: docker service ls -q -f "name=portainer"
+      register: portainer_service
+      
+    - name: Install portainer
+      block:
+        - name: Create portainer tmp directory
+          file:
+            path: /tmp/portainer
+            state: directory
+        - name: Deploy portainer container
+          shell: docker service create --name portainer --publish 9000:9000 --constraint 'node.role == manager'  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock --mount type=bind,src=/tmp/portainer,dst=/data portainer/portainer:latest -H unix:///var/run/docker.sock
+      when: portainer_service.stdout == ""
+
+    - name: Compose stack file for aip
+      template:
+        src: aip-stack.yml
+        dest: /tmp/aip-stack.yml
+
+    - name: Tag with the swarm join token
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: '{{instance_id}}'
+        tags:
+          Swarm_token: "{{swarm_token.stdout}}"
+
+
+- hosts: swarm_worker:&aws_linux
+  name: Configuration swarm linux workers
+  gather_facts: no
+
+  tasks:
+    - name: Get join token from master instance
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_instance_info:
+        filters:
+          "tag:Swarm": swarm_master
+      register: swarm_master_instance
+
+    - name: Join swarm as linux worker
+      remote_user: admin
+      block: 
+        - name: Swarm join
+          shell: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
+
+- hosts: swarm_worker:&aws_windows
+  name: Configuration swarm windows workers
+  gather_facts: no
+
+  tasks:
+    - name: Get join token from master instance
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_instance_info:
+        filters:
+          "tag:Swarm": swarm_master
+      register: swarm_master_instance
+
+    - name: Join swarm as windows worker
+      block: 
+        - name: Swarm join
+          win_command: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
+
+
+
 ###############
 # AIP DASHBOARD
 ###############
@@ -306,11 +412,6 @@
   name: Dashboard node
   remote_user: admin
   gather_facts: no
-
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
 
   vars:
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no
@@ -344,10 +445,6 @@
   name: Webi aip console nodes
   remote_user: admin
   gather_facts: no
-
-  vars_files:
-    - vars/aws-defaults.yml
-    - vars/aip-defaults.yml
 
   vars:
     ansible_ssh_extra_args: -o StrictHostKeyChecking=no

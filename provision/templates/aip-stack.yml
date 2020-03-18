@@ -1,0 +1,66 @@
+version: '3.6'
+services:
+
+    postgresql:
+        image: postgres:10.6
+        volumes:
+        - aip-data:/var/lib/postgresql/data
+        environment:
+        - POSTGRES_USER=operator
+        - POSTGRES_PASSWORD=CastAIP
+        - POSTGRES_DB=postgres
+        - PGDATA=/var/lib/postgresql/data/pgdata
+        command: "-N 300 -c 'temp_buffers=32MB' -c 'work_mem=64MB' -c 'maintenance_work_mem=1024MB' -c 'fsync=off' -c 'synchronous_commit=off' -c 'full_page_writes=off' -c 'commit_delay=10' -c 'checkpoint_completion_target=0.9' -c 'cursor_tuple_fraction=1.0' -c 'log_checkpoints=on' -c 'log_destination=stderr' -c 'logging_collector=on' -c 'log_line_prefix=%t [%p]: [%l-1] ' -c 'log_temp_files=1024kB' -c 'log_autovacuum_min_duration=1000ms' -c 'autovacuum_vacuum_cost_limit=200' -c 'bytea_output=escape' -c 'datestyle=iso,mdy' -c 'lc_messages=C' -c 'lc_monetary=C' -c 'lc_numeric=C' -c 'lc_time=C' -c 'max_locks_per_transaction=4096' -c 'standard_conforming_strings=on'"
+        healthcheck:
+          test: "psql -h localhost -U operator -d postgres -c '\\l'"
+          interval: 30s
+          timeout: 30s
+          retries: 3
+        deploy:
+          placement:
+            constraints: [node.role == manager]
+          resources:
+            reservations:
+              cpus: '0.50'
+              memory: 512M
+
+
+    #The sole purpose of this container is to populate the 'datapack' volume for postgresql
+    #We can choose to use a 'bind' mount and use a host dir directly. This is less portable but indeed an option while polishing
+    #=> Data can be shipped in companion images, following the same version schema.
+    aip-flat:
+        image: {{aip_win_registry_ip}}:5000/castsoftware/aip-flat
+        volumes:
+          - type: volume
+            source: aip-flat
+            target: "C:\\volume"
+        deploy:
+          mode: global 
+          placement:
+            constraints: [engine.labels.os == windows]
+            # In Swarm mode, the container would be restarted by default.
+            # => Once shutdown, remains like this.
+          restart_policy:
+            condition: none
+
+    aip-node:
+        image: {{aip_win_registry_ip}}:5000/castsoftware/aip-node
+        environment:
+        - AIPNODE_DB_HOSTNAME=postgresql
+        - AIPNODE_DB_PORT=5432
+        volumes:
+          - type: volume
+            source: aip-flat
+            target: "C:\\AIPFlat"
+          - type: volume
+            source: aip-node1
+            target: "C:\\CASTMS"
+        deploy:
+           placement:
+             constraints: [engine.labels.os == windows]
+
+
+volumes:
+  aip-flat:
+  aip-data:
+  aip-node1:

@@ -1,45 +1,260 @@
-# Bakes a base Windows image with CAIP installed
-#
-# This image is used to create new aip node where 
-# the rest api is installed and configured
-#
+- hosts: localhost:&bake-aip-linux-registry
+  connection: local
+  tasks:
+    - name: Linux instance to bake a registry 
+      ec2:
+        # This key is already created by the bootstrap
+        key_name: aip_controller_key
+        instance_type: t2.small
+        vpc_subnet_id: '{{vpc_subnet_id}}'
+        image: '{{ debian_ami_id }}'
+        # This group is created by the bootstrap
+        groups:
+          - aip_default
+        wait: true
+        instance_tags:
+          Name: aip_linux_registy
+          Groups: aip_linux_registry
+      register: bake_host
+
+    - name: Add bake instance to inventory
+      add_host:
+        name: "{{ bake_host.instances[0].public_ip }}"
+        groups: 
+        - aip_linux_registry
+        - aws_linux
+        instance_id: "{{ bake_host.instances[0].id }}"
+        private_ip_address: "{{ bake_host.instances[0].private_ip }}"
+
+# Playbook for the added linux registry
+- hosts: aip_linux_registry:&aws_linux
+  name: AIP Linux Registry
+  remote_user: admin
+  gather_facts: no
+  pre_tasks:
+    - name: Wait for WinRM to come up
+      wait_for_connection:
+          #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+  tasks:
+    - name: Tools setup
+      become: yes
+      block:
+        - name: Install docker 
+          import_role:
+              name: geerlingguy.docker
+          vars:
+            docker_users:
+              - admin
+
+        # Docker - check version
+        - name: Docker version
+          shell: docker version
+
+        # Docker configuration - add daemon.json
+        #  - insecure registry 
+        #  - storage
+        - name: Configure docker daemon
+          template:
+            src: docker_daemon_linux.json
+            dest: /etc/docker/daemon.json
+        
+        # Docker configuration
+        #  - restart daemon
+        - name: Restart docker daemon
+          service:
+            name: docker
+            state: restarted
+        
+        # Docker configuration
+        #  - Start local registry
+        - name: Run insecure registry
+          shell: "docker run -d -p {{registry_port}}:{{registry_port}} --restart=always --name registry registry:2"
+
+        - name: Install unzip 
+          package:
+            name: 
+              - unzip
+            state: present
+
+        - name: Install openjdk8
+          import_role:
+            name: geerlingguy.java
+          when: "ansible_os_family == 'Debian'"
+          vars:
+            java_packages:
+              - openjdk-8-jdk
+
+        - name: Install maven
+          package:
+            name: 
+              - maven
+            state: present
+
+    # admin has been added to group docker
+    - name: Reset ssh connection to allow user changes to affect 'admin'
+      meta: reset_connection
+
+    - name: Build and push images
+      block:
+        - name: Check docker
+          shell: docker version
+
+        - name: Get CMSAPI source zip
+          import_role:
+            name: presign_then_get_s3_url
+          vars:
+            bucket: "{{cast_aip_s3_bucket}}" 
+            object: "{{cast_cmsapi_src_zip}}"
+            dest: /tmp
+
+        - name: Creates cmsapi dir
+          file:
+            name: /tmp/cmsapi
+            state: directory
+
+        - name:  Unzip CMSAPI 
+          unarchive:
+            src: /tmp/{{cast_cmsapi_src_zip}}
+            dest: /tmp/cmsapi
+            remote_src: yes
+
+        - name: Get Framework detector 
+          import_role:
+            name: presign_then_get_s3_url
+          vars:
+            bucket: "{{cast_aip_s3_bucket}}" 
+            object: "{{cast_detect_framework_zip}}"
+            dest: /tmp/detect_framework.zip
+
+        - name: Get CMSAPI UI jar
+          import_role:
+            name: presign_then_get_s3_url
+          vars:
+            bucket: "{{cast_aip_s3_bucket}}" 
+            object: "{{cast_cmsapi_ui_jar}}"
+            dest: /tmp/{{cast_cmsapi_ui_jar}}
+
+        # Can one use --start-at-task and have all pretasks executed too?
+        #- name: setup again
+        # setup:
+
+
+        - name: Install the CAST_CMSAPI_UI jar in m2
+          shell: mvn  org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/tmp/{{cast_cmsapi_ui_jar}}
+
+        - name: Build CMSAPI
+          shell: "mvn -pl aip-console-app -am -Pdocker -Ddetect-framework.directory=/tmp clean install -DskipTests"
+          args: 
+            chdir: /tmp/cmsapi
+
+        - name: Remove cmsapi dir
+          file:
+            path: /tmp/cmsapi
+            state: absent
+
+        - name: Remove cmsapi zip
+          file:
+            path: /tmp/{{cast_cmsapi_src_zip}}
+            state: absent
+
+        - name: Tagging aip-console with local registry prefix and latest
+          shell: "docker tag castsoftware/aip-console {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+
+        - name: Tagging aip-console with local registry prefix and caip version 
+          shell: "docker tag castsoftware/aip-console {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+
+        - name: Push aip-console with latest tag
+          shell: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+          
+        - name: Push aip-console with aip version tag
+          shell: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+
+        - name: Clean images - aip-console
+          shell: "docker image rm castsoftware/aip-console"
+
+        - name: Clean images - aip-console tagged latest 
+          shell: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+
+        - name: Clean images - aip-console tagged version
+          shell: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+
+  post_tasks:
+    # AMI management for the registry
+    #
+    # Find previous AMI for the same AIP version
+    # Deregister and delete snapshot
+    # Create the a new AMI for the same AIP version
+    # 
+
+    # Find current image with same aip version
+    - name: Find latest baked ami for matching name 
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami_info:
+        owner: self
+        filters:
+          name: "aip_linux_registry-{{cast_aip_version}}"
+      register: ami_find
+
+    # Clean 
+    - name: Deregister the images with same name 
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami:
+        image_id: "{{item.image_id}}"
+        delete_snapshot: yes
+        state: absent
+        wait: yes
+      loop: "{{ami_find.images}}"
+
+    # Register a new image with the same AIP version
+    - name: Create ami image from instance
+      # delegate the task to the localhost
+      # ansible_connection: local has to be set as it is already set at the playbook level.
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_ami:
+        instance_id: "{{instance_id}}"
+        wait: yes
+        wait_timeout: 1800
+        name: "aip_linux_registry-{{cast_aip_version}}"
+        tags:
+            Name: aip_linux_registry
+            Stage: bake
+  
+    - name: Terminate instance
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      connection: local
+      ec2:
+        instance_ids:
+          - "{{ instance_id }}"
+        state: absent 
+
 
 
 # This playbook is executed on the controller
 # required extra variables:
 # - win_admin_password: the admin password
 #
-- hosts: localhost
-  vars_files:
-      - vars/aws-defaults.yml
-      - vars/aip-defaults.yml
-
+- hosts: localhost:&bake-aip-win-registry
+  connection: local
   vars:
     aip_win_user_data: "aip_win_user_data.txt"
-  
 
   tasks:
-    - name: Create sec group for WinRM and RDP
-      ec2_group:
-          name: winsec
-          description: WinRM RDP security group
-          rules:
-              - proto: tcp
-                ports:
-                    - 3389
-                cidr_ip: 0.0.0.0/0
-                rule_desc: RDP
-              - proto: tcp
-                ports:
-                    - 5986
-                cidr_ip: 0.0.0.0/0
-                rule_desc: WinRM-HTTPS
-
     - name: Replace admin password in user data
       template:
         src: "{{aip_win_user_data}}.j2"
         dest: "{{aip_win_user_data}}"
-
 
     # Creates a Windows instance for baking
     #  a registry with images from:
@@ -50,38 +265,41 @@
         instance_type: t2.small
         vpc_subnet_id: "{{vpc_subnet_id}}"
         image: "{{ windows_ami_id }}"
+        # winsec created in bootstrap.yml
         groups:
             - winsec
         wait: true
+        # 30G is not enough to create images of aip-flat and aip-node-app
         volumes:
           - device_name: /dev/sda1
             volume_size: 50
         instance_tags:
-            Name: aip_node_bake
-            Groups: aip_node_bake windows
+            Name: aip_win_registry
+            Groups: aip_win_registry
         user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
       register: bake_host
 
     # Adds the image to the inventory
     #  The playbook will continue with the added entry to 
-    #  'aip_node_bake'
+    #  'aip_win_registry'
     - name: Add bake instance to inventory
       add_host:
         name: "{{ bake_host.instances[0].public_ip }}"
-        groups: aip_node_bake
+        groups: 
+        - aip_win_registry
+        - aws_windows
         instance_id: "{{ bake_host.instances[0].id }}"
+        private_ip_address: "{{ bake_host.instances[0].private_ip }}"
 
-- hosts: aip_node_bake
-  name: Windows aip nodes
+
+# Playbook for the added windows registry
+- hosts: aip_win_registry:&aws_windows
+  name: AIP Windows Registry
   remote_user: Administrator
   gather_facts: no
 
   vars:
     registry_port: 5000
-
-  vars_files:
-    - vars/aip-defaults.yml
-    - vars/aip-win-connection.yml
 
 # make sure pip install "pywinrm>=0.2.2"
 
@@ -224,7 +442,7 @@
     #  - storage
     - name: Configure docker daemon
       win_template:
-        src: docker_daemon.json
+        src: docker_daemon_win.json
         dest: C:\ProgramData\docker\config\daemon.json
       tags:
         - docker
@@ -307,24 +525,17 @@
     - name: Push aip-flat with latest tag 
       win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
 
-          #- name: Build CMSAPI aip-node-app 
-          #  win_command: mvn.cmd -pl "aip-node-app,aip-console-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK -DskipTests install 
-          #  args:
-          #    chdir: C:\CAST_CMSAPI_SRC
-          #  tags:
-          #    - compile-aip-node
-          #
-    
-        #- name: Copy custom setup fixture
-        #  win_template:
-        #      dest: C:\CAST_AIP\caip_silent_installation.iis
-        #      src: 'caip_silent_installation.iis.j2'
-        #
-        #- name: Install CAIP
-        #  win_command: setup.bat /s /f1"C:\CAST_AIP\caip_silent_installation.iis" /f2"C:\CAST_AIP\caip_install.log"
-        #  args:
-        #      chdir: C:\CAST_AIP
-        #      creates: "{{cast_aip_install_dir}}"
+    - name: Remove aip-node with aip version tag
+      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+
+    - name: Remove aip-node with latest tag
+      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
+
+    - name: Remove aip-flat with aip version tag 
+      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+
+    - name: Remove aip-flat with latest tag 
+      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
 
   post_tasks:
     # AMI management for the registry
@@ -342,7 +553,7 @@
       ec2_ami_info:
         owner: self
         filters:
-          name: aip_node-{{cast_aip_version}}
+          name: "aip_win_registry-{{cast_aip_version}}"
       register: ami_find
 
     # Clean 
@@ -368,11 +579,10 @@
         instance_id: "{{instance_id}}"
         wait: yes
         wait_timeout: 1800
-        name: "aip_node-{{cast_aip_version}}"
+        name: "aip_win_registry-{{cast_aip_version}}"
         tags:
-            Name: aip_registry
+            Name: aip_win_registry
             Stage: bake
-            Seq: 0
   
     - name: Terminate instance
       delegate_to: localhost

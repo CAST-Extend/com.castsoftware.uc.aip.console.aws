@@ -13,5 +13,6 @@ EXTRA_VARS="${EXTRA_VARS} logcollector_host=172.31.77.11 logcollector_port=5044"
 [[ -f "$HOME/.aws-env" ]] && source "$HOME/.aws-env"
 # shellcheck disable=SC1090
 [[ -f "$HOME/.aws-region" ]] && source "$HOME/.aws-region"
+AWS_REGION=${AWS_DEFAULT_REGION} \
 AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:?Missing AWS_DEFAULT_REGION} \
 ansible-playbook -vvv -e "$EXTRA_VARS"  "$@" "$PLAYBOOK"

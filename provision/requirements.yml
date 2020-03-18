@@ -4,3 +4,9 @@
 
 - src: https://github.com/geerlingguy/ansible-role-filebeat.git
   name: geerlingguy.filebeat
+
+- src: https://github.com/geerlingguy/ansible-role-docker.git
+  name: geerlingguy.docker
+
+- src: https://github.com/geerlingguy/ansible-role-java.git
+  name: geerlingguy.java

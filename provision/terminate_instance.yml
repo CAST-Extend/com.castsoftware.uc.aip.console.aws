@@ -1,0 +1,13 @@
+#
+# Playbook for AWS instance termination
+#
+- hosts: ec2*
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Terminate ec2 instance
+      ec2:
+        state: absent
+        wait: true
+        instance_ids: "{{ instance_id }}"
