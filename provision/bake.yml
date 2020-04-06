@@ -1,3 +1,24 @@
+# Bake Windows and Linux AMI images with docker registries
+#
+# This process uses uploaded files on s3:
+#  - CAST_CMSAPI_SRC.zip: zip of the source files of the cmsapi project
+#    How:
+#    - clone the project $HOME/cmsapi
+#    - apply patches if any
+#    - cd $HOME/cmsapi 
+#    - zip -r ../CAST_CMSAPI_SRC.zip .
+#    - Upload it to the s3 bucket
+#
+# - detect_framwork.zip
+#   How:
+#   - Upload it to the s3 bucket
+#
+# - CAST-CMSAPI-UI-1.15.0-SNAPSHOT.jar: misssing java dependency
+#   How:
+#   - Upload it to the s3 bucket
+#
+
+
 - hosts: localhost:&bake-aip-linux-registry
   connection: local
   tasks:
@@ -29,7 +50,6 @@
 # Playbook for the added linux registry
 - hosts: aip_linux_registry:&aws_linux
   name: AIP Linux Registry
-  remote_user: admin
   gather_facts: no
   pre_tasks:
     - name: Wait for WinRM to come up
@@ -367,7 +387,7 @@
       vars:
         bucket: "{{cast_aip_s3_bucket}}" 
         object: "{{cast_aip_flat_zip}}"
-        dest: c:\cast_aip.zip
+        dest: C:\CAST_AIP.zip
     
     - name: Get CMSAPI source zip
       import_role:
@@ -375,7 +395,7 @@
       vars:
         bucket: "{{cast_aip_s3_bucket}}" 
         object: "{{cast_cmsapi_src_zip}}"
-        dest: c:\cast_cmsapi_src.zip
+        dest: C:\CAST_CMSAPI_SRC.zip
     
     - name: Get CMSAPI UI jar
       import_role:
@@ -402,10 +422,10 @@
         dest: C:\CAST_DETECT_FRAMEWORK\detect_framework.zip
     
     - name: Unzip CAIP
-      win_command: '7z x C:\CAST_AIP.zip -y -oC:\CAST_AIP'
+      win_command: "7z x C:/CAST_AIP.zip -y -o{{cast_aip_install_dir}}"
       args:
           chdir: C:\
-          creates: C:\CAST_AIP\
+          creates: "{{cast_aip_install_dir}}"
     
     - name: Remove caip zip file
       win_file:
@@ -482,24 +502,24 @@
         chdir: C:\CAST_CMSAPI_SRC
     
     # Docker build
-    #  - build a image with AIP flat and CastGlobalSettings configuration
-    - name: Copy Dockerfile to Build AIP flat with configuration
-      win_template:
-        src: Dockerfile_aip_flat.j2
-        dest: C:\CAST_AIP\Dockerfile
+    ##  - build a image with AIP flat and CastGlobalSettings configuration
+    #- name: Copy Dockerfile to Build AIP flat with configuration
+    #  win_template:
+    #    src: Dockerfile_aip_flat.j2
+    #    dest: "{{cast_aip_install_dir}}\Dockerfile"
     
     - name: Copy CastGlobalSettings.ini in AIP flat
       win_template:
         src: CastGlobalSettings.ini.j2
-        dest: C:\CAST_AIP\CastGlobalSettings.ini
+        dest: "{{cast_aip_install_dir}}/CastGlobalSettings.ini"
 
-    - name: Build flat docker image
-      win_command: docker build -t castsoftware/aip-flat .
-      args:
-        chdir: C:\CAST_AIP
+        #- name: Build flat docker image
+        #  win_command: docker build -t castsoftware/aip-flat .
+        #  args:
+        #    chdir: {{cast_aip_install_dir}}
     
-    - name: Tag flat docker image with aip version
-      win_command: "docker tag castsoftware/aip-flat castsoftware/aip-flat:{{cast_aip_version}}"
+        # - name: Tag flat docker image with aip version
+        #   win_command: "docker tag castsoftware/aip-flat castsoftware/aip-flat:{{cast_aip_version}}"
 
     - name: Tagging aip-node with local registry prefix and aip version 
       win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
@@ -507,11 +527,11 @@
     - name: Tagging aip-node with local registry prefix and latest
       win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
 
-    - name: Tagging aip-flat with local registry prefix and aip version
-      win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+      #- name: Tagging aip-flat with local registry prefix and aip version
+      #  win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
 
-    - name: Tagging aip-flat with local registry prefix and latest
-      win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      #- name: Tagging aip-flat with local registry prefix and latest
+      #  win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
 
     - name: Push aip-node with aip version tag
       win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
@@ -519,11 +539,11 @@
     - name: Push aip-node with latest tag
       win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
 
-    - name: Push aip-flat with aip version tag 
-      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+      #- name: Push aip-flat with aip version tag 
+      #  win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
 
-    - name: Push aip-flat with latest tag 
-      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      #- name: Push aip-flat with latest tag 
+      #  win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
 
     - name: Remove aip-node with aip version tag
       win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
@@ -531,11 +551,11 @@
     - name: Remove aip-node with latest tag
       win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
 
-    - name: Remove aip-flat with aip version tag 
-      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
+      #- name: Remove aip-flat with aip version tag 
+      #  win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
 
-    - name: Remove aip-flat with latest tag 
-      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      #- name: Remove aip-flat with latest tag 
+      #  win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
 
   post_tasks:
     # AMI management for the registry

@@ -1,0 +1,6 @@
+{
+  {% if insecure_registry %}
+  "insecure-registries": ["{{insecure_registry.ip}}:{{insecure_registry.port}}"],
+  {% endif %}
+  "labels": ["os=linux"]
+}

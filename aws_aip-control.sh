@@ -55,6 +55,8 @@
 #
 # 3. (In dev phase), iterate by updating the controller
 #    $>./aws_aip-control.sh -t sync
+#    (In dev phase), update ansible requirements (only if provision/requirements.yml changes)
+#    $>./aws_aip-control.sh -t requirements
 #
 # 4. (In dev phase), run the expansion of only one type of instance, then provision
 #    $>ssh -A admin@<controller-public-ip> ./aws_aip-expand.sh -t <aipconsole|aipdashboard|aippostgres>
@@ -86,13 +88,14 @@
 # shellcheck disable=SC1090
 [[ -f "$HOME/.aip-aws" ]] && source "$HOME/.aip-aws"
 
-#playbook yo use
+#playbook to use
 export PLAYBOOK="provision/bootstrap.yml"
 
 PUBLIC_KEY=${PUBLIC_KEY:?"Missing public key path"}
 [[ ! -f $PUBLIC_KEY ]] && echo "Public key file missing: $PUBLIC_KEY" && exit 1
 
+# Bootstrap when the no ec2 instance with the private_ip_address exists
+# (hence the -i inventory.aws_ec2.yml)
 EXTRA_VARS="public_key=$PUBLIC_KEY instance_profile_name=$AWS_IAM_ROLE" \
-    ./aws_aip.sh -i bootstrap.ini -i inventory.aws_ec2.yml "$@"
-./aws_aip.sh -i inventory.aws_ec2.yml --limit "aip_aws_controller_hosts:&expand" "$@"
+    ./aws_aip.sh -i bootstrap.ini -i inventory.aws_ec2.yml "$@" &&
 ./aws_inventory.sh --graph

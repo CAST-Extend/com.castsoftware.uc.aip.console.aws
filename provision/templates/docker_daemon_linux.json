@@ -1,4 +1,0 @@
-{
-  "insecure-registries": ["{{private_ip_address}}:{{registry_port}}"],
-  "labels": ["os=linux"]
-}

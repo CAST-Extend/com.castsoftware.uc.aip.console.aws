@@ -1,13 +1,19 @@
 #
 # Playbook for AWS instance termination
 #
-- hosts: ec2*
+- hosts: localhost
   connection: local
   gather_facts: false
 
   tasks:
+    - name: Find instances by tenant
+      ec2_instance_info:
+        filters:
+          "tag:Tenancy": "{{aip_tenancy}}"
+      register: terminate_instances
+
     - name: Terminate ec2 instance
       ec2:
         state: absent
         wait: true
-        instance_ids: "{{ instance_id }}"
+        instance_ids: "{{terminate_instances.instances|map(attribute='instance_id')|list}}"

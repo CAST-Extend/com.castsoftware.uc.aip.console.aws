@@ -1,3 +1,4 @@
+aip_tenancy: cast_devteam
 # windows 2019
 # windows_ami_id: ami-0410d3d3bd6d555f4
 # => Not supported by CAST AIP
@@ -11,7 +12,7 @@ debian_ami_id: ami-017b679ef539c260f
 vpc_subnet_id: subnet-906775af
 # used to grant postgres access
 subnet_cidr: 172.31.64.0/20
-aip_aws_controller_ip: 172.31.66.10
+ansible_controller_ip: 172.31.66.10
 aip_postgres_ip: 172.31.66.11
 aip_console_ip: 172.31.66.12
 aip_dashboard_ip: 172.31.66.13
@@ -45,7 +46,7 @@ cast_aip_console_jar: "{{cast_aip_console}}-{{cast_aip_console_version}}-{{cast_
 
 
 # Install base dir for cast prooducts on Windows
-cast_opt: 'C:\\OPT'
-cast_aip_install_dir: '{{cast_opt}}\\CAST_AIP'
+cast_opt: 'C:\'
+cast_aip_install_dir: '{{cast_opt}}CAST_AIP'
 cast_cmsapi_ui_jar: CAST-CMSAPI-UI-1.15.0-SNAPSHOT.jar
 cast_aip_flat_zip: 8.3.20_Build2253_flat_for_customer.7z

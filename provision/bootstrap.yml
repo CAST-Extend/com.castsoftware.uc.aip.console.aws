@@ -1,74 +1,85 @@
 ---
-# Bootstrap a AWS ec2 controller for AIP related playbooks.
-#
-# It creates all common resource for other playbooks:
-# - The subnet security groups
-# - The public key 
-#
+# Bootstrap:
+#  - a ec2 instance for ansible controller
+#  - a default security group allowing in group communication
+#  - a open ssh security group
+#  - a public key for ssh
 #
 - hosts: localhost:&bootstrap
   connection: local
   tasks:
-    - name: Create insubnet sec group
-      ec2_group:
-        name: aip_default 
-        description: Allow in group and ssh communication
-        rules:
-          - proto: all
-            group_name: aip_default
-          - proto: tcp
-            ports:
-              - 22
-            cidr_ip: 0.0.0.0/0
-
-    - name: Create sec group for WinRM and RDP
-      ec2_group:
-          name: winsec
-          description: WinRM RDP security group
+    - name: Bootstrap when no controller ip found in inventory
+      block:
+      - name: Create a default in-group communication rule
+        ec2_group:
+          name: aip_default 
+          description: Allow in group communication
           rules:
-              - proto: tcp
-                ports:
-                    - 3389
-                cidr_ip: 0.0.0.0/0
-                rule_desc: RDP
-              - proto: tcp
-                ports:
-                    - 5986
-                cidr_ip: 0.0.0.0/0
-                rule_desc: WinRM-HTTPS
+            - proto: all
+              group_name: aip_default
 
-    - name: Create key pair
-      ec2_key:
-        name: aip_controller_key
-        key_material: "{{ lookup('file', '{{ public_key }}') }}"
+      - name: Create a open ssh rule
+        ec2_group:
+          name: aip_open_ssh
+          description: Allow ssh communication
+          rules:
+            - proto: tcp
+              ports:
+                - 22
+              cidr_ip: 0.0.0.0/0
 
-    - name: Bootstrap AWS controller
-      ec2:
-        # role of the instance
-        instance_profile_name: "{{instance_profile_name}}"
-        key_name: aip_controller_key
-        instance_type: t2.nano
-        vpc_subnet_id: '{{vpc_subnet_id}}'
-        image: '{{ debian_ami_id }}'
-        wait: true
-        groups:
-          - aip_default
-        private_ip: '{{aip_aws_controller_ip}}'
-        instance_tags:
-          Stage: expand
-          Name: aip_aws_controller
-          Groups: aip_aws_controller_hosts
-          Base: aws_linux
-      when: "aip_aws_controller_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
+      - name: Create a open WinRM and RDP rule
+        ec2_group:
+            name: winsec
+            description: WinRM RDP security group
+            rules:
+                - proto: tcp
+                  ports:
+                      - 3389
+                  cidr_ip: 0.0.0.0/0
+                  rule_desc: RDP
+                - proto: tcp
+                  ports:
+                      - 5986
+                  cidr_ip: 0.0.0.0/0
+                  rule_desc: WinRM-HTTPS
 
-- hosts: aip_aws_controller_hosts:&aws_linux
-  name: AIP Aws controller node
+      - name: Create key pair
+        ec2_key:
+          name: aip_controller_key
+          key_material: "{{ lookup('file', '{{ public_key }}') }}"
+
+      - name: Bootstrap ansible controller
+        ec2:
+          # role of the instance
+          instance_profile_name: "{{instance_profile_name}}"
+          key_name: aip_controller_key
+          instance_type: t2.nano
+          vpc_subnet_id: '{{vpc_subnet_id}}'
+          image: '{{ debian_ami_id }}'
+          wait: true
+          groups:
+            - aip_default
+            - aip_open_ssh
+          private_ip: '{{ansible_controller_ip}}'
+          instance_tags:
+            Stage: expand
+            Name: aip_aws_controller
+            Groups: ansible_controller
+            Base: aws_linux
+
+      - name: Refresh inventory
+        meta: refresh_inventory
+      when: "ansible_controller_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
+
+
+
+
+- hosts: ansible_controller:&aws_linux
+  name: Configure Ansible controller instance
   gather_facts: no
-
   vars:
-    aipond_dir: "/home/admin"
     home: "{{ lookup('env', 'HOME') }}"
-
   tasks:
     - name: Wait for SSH to come up
       wait_for_connection:
@@ -98,7 +109,16 @@
         become: yes
         synchronize:
           src: ../../
-          dest: "{{aipond_dir}}"
+          # home of ssh user
+          dest: .
+          rsync_opts:
+          - "--exclude=.git"
+
+        # This file is accessed with root, so put it out of current home
+      - name: Copy ansible requirements file
+        copy:
+          src: requirements.yml
+          dest: /tmp/requirements.yml
 
       - name: Copy dot files
         copy:
@@ -109,7 +129,6 @@
         copy:
           src: "{{ home }}/.aws-region"
           dest: "~/.aws-region"
-        
       tags:
         - sync
         
@@ -125,7 +144,9 @@
 
     - name: Install ansible-requirements
       become: yes
-      shell: "ansible-galaxy install --role-file={{aipond_dir}}/provision/requirements.yml --roles-path=/etc/ansible/roles"
+      shell: "ansible-galaxy install --role-file=/tmp/requirements.yml --roles-path=/etc/ansible/roles"
+      tags:
+        - requirements
 
     - name: Tag stage as init
       delegate_to: localhost

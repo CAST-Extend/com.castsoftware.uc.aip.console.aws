@@ -1,0 +1,31 @@
+---
+# Configures docker daemon
+#
+# vars:
+#   insecure_registry:
+#     ip: the ip/hostname of the registry
+#     port: the port of the registry
+#
+
+- name: Windows docker daemon configuration
+  block:
+  - name: Configure docker daemon
+    win_template:
+      src: docker_daemon_win.json.j2
+      dest: C:\ProgramData\docker\config\daemon.json
+  - name: Restart docker daemon
+    win_command: powershell Restart-Service docker
+  when: ansible_os_family == "Windows"
+
+- name: Linux docker daemon configuration
+  become: yes
+  block:
+  - name: Configure docker daemon
+    template:
+      src: docker_daemon_linux.json.j2
+      dest: /etc/docker/daemon.json
+  - name: Restart docker service
+    service:
+      name: docker
+      state: restarted
+  when: ansible_os_family != "Windows"

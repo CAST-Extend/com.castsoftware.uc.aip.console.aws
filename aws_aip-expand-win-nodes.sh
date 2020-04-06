@@ -7,6 +7,8 @@
 # CAIP version determines the AMI to use
 [[ -n "$CAST_AIP_VERSION" ]]&& EXTRA_VARS="${EXTRA_VARS} cast_aip_version=$CAST_AIP_VERSION"
 
-EXTRA_VARS="${EXTRA_VARS}" ./aws_aip.sh -i expand-aip-registries.ini  --limit localhost "$@"
+EXTRA_VARS="${EXTRA_VARS} aip_win_node_count=2" ./aws_aip.sh -i expand-aip-win-nodes.ini  --limit localhost "$@" &&
+
+EXTRA_VARS="${EXTRA_VARS}" ./aws_aip.sh -i inventory.aws_ec2.yml --limit aip_win_worker_node "$@" &&
 
 ./aws_inventory.sh --graph

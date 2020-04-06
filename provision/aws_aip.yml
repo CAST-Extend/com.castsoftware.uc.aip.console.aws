@@ -12,30 +12,81 @@
 # Once an instance with "Stage: expand" has the matching playbook
 #   applied, it is tagged with "Stage: init"
 
+
+# ####################################
+# Common resources for AIP environment
+# ####################################
 - hosts: localhost:&expand
   connection: local
+  tasks: 
 
-  tasks:
-
-    - name: Open http port for aip console
-      tags:
-        - aipconsole
+    # TODO: This group is used by all instances. This is too open
+    - name: Open http port for AIP stacks
       ec2_group:
-        name: aip_console
+        name: aip_stacks
         description: Allow aip console http port
         rules:
           - proto: tcp
-            ports:
-              - 8081
+            from_port: 8000
+            to_port: 9000
             cidr_ip: 0.0.0.0/0
-            rule_desc: allow http port for aip console
+            rule_desc: Ports for management and application
+    # TODO: this group is used by all windows instances. This is too open
+    - name: Create sec group for WinRM and RDP
+      ec2_group:
+          name: winsec
+          description: WinRM RDP security group
+          rules:
+              - proto: tcp
+                ports:
+                    - 3389
+                cidr_ip: 0.0.0.0/0
+                rule_desc: RDP
+              - proto: tcp
+                ports:
+                    - 5986
+                cidr_ip: 0.0.0.0/0
+                rule_desc: WinRM-HTTPS
+# #############################################
+# Expand Docker linux registry and swarm master
+# #############################################
+- hosts: localhost:&expand-aip-linux-registry
+  connection: local
+  tasks:
+    - name: Find latest baked ami for aip linux registry
+      ec2_ami_info:
+        owner: self
+        filters:
+          name: aip_linux_registry-{{cast_aip_version}}
+      register: ami_find
 
-
+    - name: Create linux registry 
+      ec2:
+        instance_type: t2.small
+        key_name: aip_controller_key
+        vpc_subnet_id: '{{vpc_subnet_id}}'
+        image: '{{ ami_find.images[0].image_id}}'
+        groups:
+          - aip_default
+          - aip_stacks
+        wait: true
+        private_ip: '{{aip_linux_registry_ip}}'
+        exact_count: 1
+        count_tag:
+          Name: "{{aip_tenancy}}__aip_linux_registry" 
+        instance_tags:
+          Base: aws_linux
+          Registry: linux
+          Stage: expand
+          Groups: aip_linux_master_node
+          Swarm: swarm_master
+          Tenancy: "{{aip_tenancy}}"
+          Name: "{{aip_tenancy}}__aip_linux_registry" 
+# ##############################
+# Expand Docker windows registry
+# ##############################
 - hosts: localhost:&expand-aip-win-registry
   connection: local
-
-  vars:
-    aip_tenancy: aipcustomer1
 
   tasks:
     - name: Find latest baked ami for aip windows registry
@@ -60,28 +111,64 @@
           Name: "{{aip_tenancy}}__aip_win_registry" 
         instance_tags:
           Base: aws_windows
-          Tenancy: "{{aip_tenancy}}"
-          Stage: expand
-          Name: "{{aip_tenancy}}__aip_win_registry" 
-          Groups: aip_win_registry
+          Registry: windows
           Swarm: swarm_worker
-      register: aip_win_registry
+          Groups: aip_win_worker_node
+          Stage: expand
+          Tenancy: "{{aip_tenancy}}"
+          Name: "{{aip_tenancy}}__aip_win_registry" 
 
-- hosts: localhost:&expand-aip-linux-registry
+# ########################
+# Expand Swarm window node
+# ########################
+- hosts: localhost:&expand-aip-win-node
   connection: local
 
-  vars:
-    aip_tenancy: aipcustomer1
+  tasks:
+    - name: Find latest baked ami for aip windows
+      ec2_ami_info:
+        owner: self
+        filters:
+          # TODO: rename to aip_win_node
+          name: aip_win_registry-{{cast_aip_version}}
+      register: ami_find
 
+    - name: Create windows node 
+      ec2:
+        instance_type: t2.large
+        vpc_subnet_id: '{{vpc_subnet_id}}'
+        image: '{{ ami_find.images[0].image_id}}'
+        groups:
+          - aip_default
+          - winsec
+        wait: true
+        exact_count: "{{aip_win_node_count}}"
+        count_tag:
+          Base: aws_windows
+          Swarm: swarm_worker
+        instance_tags:
+          Base: aws_windows
+          Swarm: swarm_worker
+          Groups: aip_win_worker_node
+          Stage: expand
+          Tenancy: "{{aip_tenancy}}"
+          Name: "{{aip_tenancy}}__aip_win_node" 
+
+# ########################
+# Expand Swarm linux node
+# ########################
+- hosts: localhost:&expand-aip-linux-node
+  connection: local
   tasks:
     - name: Find latest baked ami for aip linux registry
       ec2_ami_info:
         owner: self
+        # TODO: rename image to aip_linux
         filters:
           name: aip_linux_registry-{{cast_aip_version}}
       register: ami_find
 
-    - name: Create linux registry 
+    - name: Create linux node 
       ec2:
         instance_type: t2.small
         key_name: aip_controller_key
@@ -89,148 +176,31 @@
         image: '{{ ami_find.images[0].image_id}}'
         groups:
           - aip_default
+          - aip_stacks
         wait: true
-        private_ip: '{{aip_linux_registry_ip}}'
-        exact_count: 1
+        exact_count: "{{aip_linux_node_count}}"
         count_tag:
-          Name: "{{aip_tenancy}}__aip_linux_registry" 
+          Base: aws_linux
+          Swarm: swarm_worker
         instance_tags:
           Base: aws_linux
+          Swarm: swarm_worker
+          Groups: aip_linux_worker_node
+          Stage: expand
           Tenancy: "{{aip_tenancy}}"
-          Stage: expand
-          Name: "{{aip_tenancy}}__aip_linux_registry" 
-          Groups: aip_linux_registry
-          Swarm: swarm_master
-      register: aip_linux_registry
-
-- hosts: localhost:&expand-posgres
-  connection: local
-
-  tasks:
-
-    - name: Create aip postgres nodes
-      tags:
-        - aippostgres
-      ec2:
-        key_name: aip_controller_key
-        instance_type: t2.small
-        vpc_subnet_id: '{{vpc_subnet_id}}'
-        image: '{{ debian_ami_id }}'
-        groups:
-          - aip_default
-        wait: true
-        private_ip: '{{aip_postgres_ip}}'
-        instance_tags:
-          Stage: expand
-          Name: aip_postgres
-          Groups: aip_postgres_hosts
-      when: "aip_postgres_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
-
-- hosts: localhost:&expand-dashboard
-  connection: local
-
-  tasks:
-    - name: Create aip dashboard nodes
-      tags:
-        - aipdashboard
-      ec2:
-        key_name: aip_controller_key
-        instance_type: t2.small
-        vpc_subnet_id: '{{vpc_subnet_id}}'
-        image: '{{ debian_ami_id }}'
-        groups:
-          - aip_default
-        wait: true
-        private_ip: '{{aip_dashboard_ip}}'
-        instance_tags:
-          Stage: expand
-          Name: aip_dashboard
-          Groups: aip_dashboard_hosts
-      when: "aip_dashboard_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
-
-- hosts: localhost:&expand-console
-  connection: local
-
-  tasks:
-    - name: Create aip console nodes
-      tags:
-        - aipconsole
-      ec2:
-        key_name: aip_controller_key
-        instance_type: t2.small
-        vpc_subnet_id: '{{vpc_subnet_id}}'
-        image: '{{ debian_ami_id }}'
-        groups:
-          - aip_default
-          - aip_console
-        wait: true
-        private_ip: '{{aip_console_ip}}'
-        instance_tags:
-          Stage: expand
-          Name: aip_console
-          Groups: aip_console_hosts
-      when: "aip_console_ip not in (hostvars.values()|map(attribute='private_ip_address')|list|string)"
-
-
-#############
-#AIP POSTGRES
-#############
-
-- hosts: aip_postgres_hosts
-  name: Postgres aip nodes
-  remote_user: admin
-  gather_facts: no
-
-  vars:
-    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
-    cast_postgres_port: 5432
-    cast_postgres_host: '{{aip_postgres_ip}}'
-
-  pre_tasks:
-    - name: Wait for SSH to come up
-      wait_for_connection:
-        timeout: 320
-
-    - name: Gather facts for the first time
-      setup:
-
-    - name: Install ntp
-      become: yes
-      apt:
-        name: ntp
-
-    - name: Install pip
-      become: yes
-      apt:
-        name: python-pip
-
-    - name: Check NTP service
-      service: name=ntp state=started
-
-  roles:
-    - { role: aip-css, become: true }
-
-  #TODO:duplication
-  post_tasks:
-    - name: Tag stage as init
-      delegate_to: localhost
-      vars:
-        ansible_connection: local
-      ec2_tag:
-        resource: '{{instance_id}}'
-        tags:
-          Stage: init
-
-#######################
-# AIP NODES - REGISTRY
-#######################
-- hosts: aip_win_*:&aws_windows
+          Name: "{{aip_tenancy}}__aip_linux_node" 
+    - name: Get linux registry ip
+      ec2_instance_info:
+        filters:
+          "tag:Registry": linux
+          instance-state-name: "running"
+      register: aws_linux_registry 
+# ##########################
+# Common Docker windows init 
+# ##########################
+- hosts: aws_windows
   name: Common configuration for windows instances
   gather_facts: no
-
-  vars:
-    cast_postgres_port: 5432
-    cast_postgres_host: '{{aip_postgres_ip}}'
 
   pre_tasks:
     - name: Wait for WinRM to come up
@@ -244,24 +214,29 @@
     - name: Configure windows firewall for docker swarm
       import_tasks: prepare-firewall-for-swarm.yml
 
+  tasks: 
     # In case the root ebs has changed, resize the C partition
     - name: Resize previously created partition to it's maximum size
       win_partition:
         drive_letter: C
         partition_size: -1
 
-  handlers:
-    - name: Restart docker daemon
-      win_command: powershell Restart-Service docker
-
-
-  tasks:
+    - name: Get windows registry ip
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_instance_info:
+        filters:
+          "tag:Registry": windows
+          instance-state-name: "running"
+      register: aws_windows_registry 
     - name: Configure docker daemon
-      win_template:
-        src: docker_daemon_win.json
-        dest: C:\ProgramData\docker\config\daemon.json
-      notify: Restart docker daemon
-
+      import_role:
+        name: docker_daemon
+      vars:
+        insecure_registry:
+          ip: "{{aws_windows_registry.instances[0].private_ip_address}}"
+          port: 5000
   post_tasks:
     - name: Tag stage as init
       delegate_to: localhost
@@ -273,7 +248,10 @@
           Stage: init
           Swarm: swarm_worker
 
-- hosts: aip_linux_*:&aws_linux
+# ##########################
+# Common Docker linux init 
+# ##########################
+- hosts: aws_linux
   name: Common configuration for linux instances
   gather_facts: no
 
@@ -286,23 +264,23 @@
     - name: Gather facts for the first time
       setup:
 
-  handlers:
-    - name: Restart docker service
-      become: yes
-      service:
-        name: docker
-        state: restarted
-
-
   tasks:
-    - name: Docker daemon configuration
-      become: yes
-      block:
-      - name: Apply template for daemon.json
-        template:
-          src: docker_daemon_linux.json
-          dest: /etc/docker/daemon.json
-        notify: Restart docker service
+    - name: Get linux registry ip
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_instance_info:
+        filters:
+          "tag:Registry": linux
+          instance-state-name: "running"
+      register: aws_linux_registry 
+    - name: Configure docker daemon
+      import_role:
+        name: docker_daemon
+      vars:
+        insecure_registry:
+          ip: "{{aws_linux_registry.instances[0].private_ip_address}}"
+          port: 5000
 
   post_tasks:
     - name: Tag stage as init
@@ -314,12 +292,13 @@
         tags:
           Stage: init
 
-
+# ############
+# Swarm master
+# ############
 - hosts: swarm_master:&aws_linux
   name: Configuration for linux swarm master
   gather_facts: no
   tasks: 
-
     - name: List swarm managers
       shell: docker node ls -q -f "role=manager"
       register: swarm_managers
@@ -333,25 +312,20 @@
       shell: "docker swarm join-token -q worker"
       register: swarm_token
 
-
-    - name: List portainer container
-      shell: docker service ls -q -f "name=portainer"
-      register: portainer_service
-      
-    - name: Install portainer
-      block:
-        - name: Create portainer tmp directory
-          file:
-            path: /tmp/portainer
-            state: directory
-        - name: Deploy portainer container
-          shell: docker service create --name portainer --publish 9000:9000 --constraint 'node.role == manager'  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock --mount type=bind,src=/tmp/portainer,dst=/data portainer/portainer:latest -H unix:///var/run/docker.sock
-      when: portainer_service.stdout == ""
-
-    - name: Compose stack file for aip
+    - name: Portainer compose file
       template:
-        src: aip-stack.yml
+        src: portainer-agent-stack.yml.j2
+        dest: /tmp/portainer-agent-stack.yml
+
+    - name: Deploy portainer stack
+      shell: "docker stack deploy --compose-file=/tmp/portainer-agent-stack.yml portainer"
+
+    - name: AIP compose file
+      template:
+        src: aip-stack.yml.j2
         dest: /tmp/aip-stack.yml
+      tags:
+        - aip_stack
 
     - name: Tag with the swarm join token
       delegate_to: localhost
@@ -363,10 +337,11 @@
           Swarm_token: "{{swarm_token.stdout}}"
 
 
-- hosts: swarm_worker:&aws_linux
+# ##################
+# Swarm linux worker
+# ##################
+- hosts: aip_linux_worker_node
   name: Configuration swarm linux workers
-  gather_facts: no
-
   tasks:
     - name: Get join token from master instance
       delegate_to: localhost
@@ -375,6 +350,7 @@
       ec2_instance_info:
         filters:
           "tag:Swarm": swarm_master
+          instance-state-name: "running"
       register: swarm_master_instance
 
     - name: Join swarm as linux worker
@@ -383,7 +359,10 @@
         - name: Swarm join
           shell: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
 
-- hosts: swarm_worker:&aws_windows
+# ####################
+# Swarm windows worker
+# ####################
+- hosts: aip_win_worker_node
   name: Configuration swarm windows workers
   gather_facts: no
 
@@ -395,6 +374,7 @@
       ec2_instance_info:
         filters:
           "tag:Swarm": swarm_master
+          instance-state-name: "running"
       register: swarm_master_instance
 
     - name: Join swarm as windows worker
@@ -402,70 +382,9 @@
         - name: Swarm join
           win_command: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
 
-
-
-###############
-# AIP DASHBOARD
-###############
-
-- hosts: aip_dashboard_hosts
-  name: Dashboard node
-  remote_user: admin
-  gather_facts: no
-
-  vars:
-    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
-
-  pre_tasks:
-    - name: Wait for SSH to come up
-      wait_for_connection:
-        timeout: 320
-
-    - name: Gather facts for the first time
-      setup:
-
-  roles:
-    - { role: aip-dashboard }
-
-  post_tasks:
-    - name: Tag stage as init
-      delegate_to: localhost
-      vars:
-        ansible_connection: local
-      ec2_tag:
-        resource: '{{instance_id}}'
-        tags:
-          Stage: init
-
-################
-# AIP WEBCONSOLE
-###############
-
-- hosts: aip_console_hosts
-  name: Webi aip console nodes
-  remote_user: admin
-  gather_facts: no
-
-  vars:
-    ansible_ssh_extra_args: -o StrictHostKeyChecking=no
-
-  pre_tasks:
-    - name: Wait for SSH to come up
-      wait_for_connection:
-        timeout: 320
-
-    - name: Gather facts for the first time
-      setup:
-
-  roles:
-    - { role: aip-console }
-
-  post_tasks:
-    - name: Tag stage as init
-      delegate_to: localhost
-      vars:
-        ansible_connection: local
-      ec2_tag:
-        resource: '{{instance_id}}'
-        tags:
-          Stage: init
+    # TODO: https://portainer.readthedocs.io/en/latest/agent.html#agent 
+    # Because of Docker limitation you need to deploy the Agent to all Windows Server nodes by running following command on each of them
+    - name: Portainer windows agent
+      win_command: 'docker run -d --name portainer_agent --restart always --network portainer_agent_network -e AGENT_CLUSTER_ADDR=tasks.portainer_agent --mount type=npipe,source=\\.\pipe\docker_engine,target=\\.\pipe\docker_engine portainer/agent:windows1809-amd64'
+      tags:
+        - portainer-agent

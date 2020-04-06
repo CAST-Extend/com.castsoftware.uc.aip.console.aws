@@ -1,0 +1,12 @@
+{
+
+  {% if insecure_registry %}
+  "insecure-registries": ["{{insecure_registry.ip}}:{{insecure_registry.port}}"],
+  {% endif %}
+  "storage-opts": [
+    "size=20G"
+  ],
+  "labels": ["os=windows"],
+  "hosts": ["tcp://0.0.0.0:2376", "npipe://"]
+
+}

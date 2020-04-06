@@ -1,0 +1,32 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              docker.container.image: redis
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              exclude_lines: ["^\\s+[\\-`('.|_]"]  # drop asciiart lines
+
+filebeat.modules:
+- module: system
+
+filebeat.inputs:
+- type: docker
+  containers:
+    ids:
+      - "*"
+  tags: ["$caller_module"]
+  multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
+  multiline.negate: false
+  multiline.match: after
+  processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+
+output.logstash:
+  hosts: ["$(_ht_bind_resolve logcollector_host):$(_ht_bind_resolve logstashbeatcollector_port)"]

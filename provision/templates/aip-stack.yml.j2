@@ -1,6 +1,6 @@
+---
 version: '3.6'
 services:
-
     postgresql:
         image: postgres:10.6
         volumes:
@@ -18,49 +18,46 @@ services:
           retries: 3
         deploy:
           placement:
-            constraints: [node.role == manager]
+            constraints: [engine.labels.os == linux]
           resources:
             reservations:
               cpus: '0.50'
               memory: 512M
-
-
-    #The sole purpose of this container is to populate the 'datapack' volume for postgresql
-    #We can choose to use a 'bind' mount and use a host dir directly. This is less portable but indeed an option while polishing
-    #=> Data can be shipped in companion images, following the same version schema.
-    aip-flat:
-        image: {{aip_win_registry_ip}}:5000/castsoftware/aip-flat
-        volumes:
-          - type: volume
-            source: aip-flat
-            target: "C:\\volume"
-        deploy:
-          mode: global 
-          placement:
-            constraints: [engine.labels.os == windows]
-            # In Swarm mode, the container would be restarted by default.
-            # => Once shutdown, remains like this.
-          restart_policy:
-            condition: none
-
+# aip node
     aip-node:
         image: {{aip_win_registry_ip}}:5000/castsoftware/aip-node
         environment:
         - AIPNODE_DB_HOSTNAME=postgresql
         - AIPNODE_DB_PORT=5432
+#Windows bind-mount volumes incompatible with Stacks and Services
+#https://github.com/moby/moby/issues/39577
+# The workaround is to remove the VOLUME directives in the dockerfile
         volumes:
-          - type: volume
-            source: aip-flat
-            target: "C:\\AIPFlat"
-          - type: volume
-            source: aip-node1
-            target: "C:\\CASTMS"
+        - type: bind 
+          source: "{{cast_aip_install_dir|replace('\\','/')}}" 
+          target: C:/AIPFlat
+          read_only: true
+        - type: volume
+          source: aip-node1
+          target: C:/CASTMS
         deploy:
-           placement:
-             constraints: [engine.labels.os == windows]
+          placement:
+            constraints: [engine.labels.os == windows]
 
+# license: CAST_R&D:1;AIP/EFP:20200331:WZWHKHHQ
+    aip-console:
+        image: 172.31.66.15:5000/castsoftware/aip-console
+        ports:
+        - "8081:8081"
+        volumes:
+        - type: volume
+          source: aip-console
+          target: /aipconsole/data
+        deploy:
+          placement:
+            constraints: [engine.labels.os == linux]
 
 volumes:
-  aip-flat:
+  aip-console:
   aip-data:
   aip-node1:

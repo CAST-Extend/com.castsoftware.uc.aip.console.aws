@@ -17,6 +17,16 @@
     state: present
     enabled: yes
 
+- name: Allow connection to TCP port 5000 for registry
+  win_firewall_rule:
+    name: Port 5000
+    localport: 5000
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: yes
+
   # Container networking needs more open ports later, see https://docs.docker.com/engine/swarm/ingress/
 - name: Open ports for later Docker Swarm Container network discovery on TCP and UDP port 7946
   win_firewall_rule:
