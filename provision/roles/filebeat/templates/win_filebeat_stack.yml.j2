@@ -12,5 +12,5 @@ services:
       #Named volume fsdata. This is used to persist the registry file between restarts, so to avoid data duplication
       - fbdata:/usr/share/filebeat/data/
     networks: ['stack']
-    command: filebeat -e -E output.elasticsearch.username=elastic -E output.elasticsearch.password=${ES_PASSWORD} -strict.perms=false
+    command: filebeat -e -strict.perms=false
     restart: on-failure

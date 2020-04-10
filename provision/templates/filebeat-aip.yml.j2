@@ -1,6 +1,7 @@
 filebeat.autodiscover:
   providers:
     - type: docker
+      host: tcp://127.0.0.1:2376
       templates:
         - condition:
             contains:
@@ -8,8 +9,8 @@ filebeat.autodiscover:
           config:
             - type: container
               tags: ["cast"]
-              paths:
-                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              container.ids:
+                - ${data.docker.container.id}
               exclude_lines: ["^\\s+[\\-`('.|_]"]  # drop asciiart lines
               multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
               multiline.negate: false
@@ -17,9 +18,6 @@ filebeat.autodiscover:
             #  processors:
             #  - add_docker_metadata:
             #      host: "unix:///var/run/docker.sock"
-
-filebeat.modules:
-- module: system
 
 
 output.logstash:

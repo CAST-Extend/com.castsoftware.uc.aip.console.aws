@@ -1,0 +1,9 @@
+#! /bin/bash
+server=localhost:{{ aip_console_port }}
+
+curl -vv -c /tmp/aip-cookies.txt -X GET "http://$server/api/initial-config/key" -H "accept: application/json" 
+
+curl -vv -b /tmp/aip-cookies.txt -X POST "http://$server/api/initial-config" -H "accept: application/json"  -H "Content-Type: application/json" \
+  -H "X-XSRF-TOKEN: $(grep XSRF /tmp/aip-cookies.txt | cut -f7)" \
+  -d @/tmp/aip-console-initial-config.json 
+

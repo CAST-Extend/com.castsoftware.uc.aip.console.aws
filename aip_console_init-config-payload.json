@@ -1,0 +1,31 @@
+{
+    "dashboardSettings":{},
+    "extendSettings": {
+        "enableSendReport": false,
+        "extendPassword": "qi13conj07",
+        "extendUrl": "https://extendng.castsoftware.com",
+        "extendUsername": "c.borges@castsoftware.com"
+    },
+    "key": "123e4567-e89b-12d3-a456-426655440000",
+    "licenseKey": "CAST_R&D:1;AIP/EFP:20200630:WZWHRXUY",
+    "measurementSettings": {
+        "database": {
+            "host": "postgresql",
+            "password": "CastAIP",
+            "port": 5432,
+            "userName": "operator"
+        },
+        "schemaName": "general_measure"
+    },
+    "nodes": [
+        {
+            "host": "aip-node1",
+            "name": "node1",
+            "port": 8082,
+            "scheme": "http",
+            "token": "node_token"
+        }
+    ],
+    "username": "cast",
+    "password": "cast"
+}

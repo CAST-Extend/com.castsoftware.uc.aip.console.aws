@@ -1,4 +1,41 @@
 
+### Upload CAST Artifacts to a s3 bucket
+
+#### Some links to CAST Artifacts
+
+* CAST_AIP: XX_XX_XX_flat_for_customer.7z 
+https://doc.castsoftware.com/display/DOC83/Installing+CAST+AIP
+https://confluence.castsoftware.com/display/download/AIP+8.3+Product+Center
+//Productfs01/EngBuild/Releases/
+smb://productfs01.corp.castsoftware.com/engbuild/
+=> take the *flat for custome*: 8.3.22_Build2313_flat_for_customer.7z
+
+* Framework Detector: detect_framework.zip
+//Productfs01/EngBuild/Releases/FrameworkDetector
+
+* AIP_console: make a tarball from source or clone repo
+https://extendng.castsoftware.com/#/extension?id=com.castsoftware.aip.console&version=1.14.2-funcrel
+
+* missing jar to compile AIP console 
+
+
+
+#### Files to upload to S3
+
+* AIP release: CAST_AIP_xxx.zip
+* AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
+* Framework detector
+* CMSAPI source tarball
+* AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
+
+To upload those files, it is recommended to install the [aws cli](https://docs.aws.amazon.com/cli/index.html).
+
+It is much faster and less error-prone than through the web console.
+
+```bash
+aws s3 cp  <path to zip> s3://<bucket>
+```
+
 # AIP on demand AWS enabler
 
 Ready to go AIP platform on AWS.
@@ -38,38 +75,6 @@ Upload zip of source files to be analyzed through an AIPConsole endpoint and pus
   * RW access to a given s3 bucket.
 
 * A VPC subnet id with its CIDR specification. (REVIEW: hardcoded 172.31.64.0/20)
-
-### Upload CAST Artifacts to a s3 bucket
-
-#### Some links to CAST Artifacts
-
-* CAST_AIP:
-https://doc.castsoftware.com/display/DOC83/Installing+CAST+AIP
-https://confluence.castsoftware.com/display/download/AIP+8.3+Product+Center
-//Productfs01/EngBuild/Releases/
-
-* AIP_console:
-https://extendng.castsoftware.com/#/extension?id=com.castsoftware.aip.console&version=1.14.2-funcrel
-
-* Framework Detector
-//Productfs01/EngBuild/Releases/FrameworkDetector
-
-
-#### Files to upload to S3
-
-* AIP release: CAST_AIP_xxx.zip
-* AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
-* Framework detector
-* CMSAPI source tarball
-* AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
-
-To upload those files, it is recommended to install the [aws cli](https://docs.aws.amazon.com/cli/index.html).
-
-It is much faster and less error-prone than through the web console.
-
-```bash
-aws s3 cp  <path to zip> s3://<bucket>
-```
 
 #### Patching AIP-Console-xxx.zip
 

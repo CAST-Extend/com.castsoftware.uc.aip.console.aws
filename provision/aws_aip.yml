@@ -237,6 +237,12 @@
         insecure_registry:
           ip: "{{aws_windows_registry.instances[0].private_ip_address}}"
           port: 5000
+
+    - name: Install and configure filebeat
+      import_role:
+        name: ansible-role-filebeat
+      vars:
+        filebeat_template_src: filebeat-aip.yml.j2
   post_tasks:
     - name: Tag stage as init
       delegate_to: localhost
@@ -282,6 +288,13 @@
           ip: "{{aws_linux_registry.instances[0].private_ip_address}}"
           port: 5000
 
+    - name: Install and configure filebeat
+      import_role:
+        name: ansible-role-filebeat
+      vars:
+        filebeat_template_src: filebeat-aip.yml.j2
+
+
   post_tasks:
     - name: Tag stage as init
       delegate_to: localhost
@@ -320,12 +333,6 @@
     - name: Deploy portainer stack
       shell: "docker stack deploy --compose-file=/tmp/portainer-agent-stack.yml portainer"
 
-    - name: AIP compose file
-      template:
-        src: aip-stack.yml.j2
-        dest: /tmp/aip-stack.yml
-      tags:
-        - aip_stack
 
     - name: Tag with the swarm join token
       delegate_to: localhost
