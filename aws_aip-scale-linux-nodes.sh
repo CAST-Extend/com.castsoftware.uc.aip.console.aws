@@ -10,7 +10,7 @@
 # instance having the tag Swarm=swarm_token, query only the token
 #aws ec2 describe-instances --filter "Name=tag:Swarm,Values=swarm_master" --query "Reservations[*].Instances[*].Tags[?Key=='Swarm_token'].{token:Value}
 
-EXTRA_VARS="${EXTRA_VARS} aip_linux_node_count=2" ./aws_aip.sh -i expand-aip-linux-nodes.ini  --limit localhost "$@" &&
+EXTRA_VARS="${EXTRA_VARS} aip_linux_node_count=${COUNT:?"Give total count of linux worker nodes"}" ./aws_aip.sh -i expand-aip-linux-nodes.ini  --limit localhost "$@" &&
 
 EXTRA_VARS="${EXTRA_VARS}" ./aws_aip.sh -i inventory.aws_ec2.yml --limit aip_linux_worker_node "$@" &&
 

@@ -1,0 +1,71 @@
+# Deploy stack 
+# required vars:
+#  - stack_name
+#  - aip_console_port
+# optional vars:
+#  - aip_node_count (default 1)
+- name: Deploy aip stack playbook 
+  hosts: swarm_master
+  vars:
+    aip_node_count: 1
+    aip_console_port: 0
+  tasks:
+  - name: Install pip
+    become: yes
+    apt:
+      name: python-pip
+  - name: Install jsondiff
+    become: yes
+    pip:
+      name:
+      - jsondiff
+      - pyyaml
+
+  - name: Debug aip_node_count
+    debug:
+      msg: "aip_node_count: {{(aip_node_count|int) >= 1}}"
+
+  - name: AIP compose file
+    template:
+      src: aip-stack.yml.j2
+      dest: "/tmp/aip-stack_{{stack_name}}.yml"
+
+  # aip-console configuration key is used as docker config object in the stack
+  - name: AIP console configurationKey
+    template:
+      src: configurationKey.txt.j2
+      dest: /tmp/configurationKey.txt
+
+  - name: Deploy AIP satck
+    docker_stack:
+      state: present
+      name: "{{stack_name}}"
+      compose:
+      - "/tmp/aip-stack_{{stack_name}}.yml"
+
+# Configure aip-console
+#
+  - name: Initial configuration through api
+    block:
+    - name: Wait for aip console
+      wait_for:
+        port: "{{ aip_console_port }}"
+        delay: 30
+
+    - name: AIP console initial config
+      template:
+        src: aip-console-initial-config.json.j2
+        dest: /tmp/aip-console-initial-config.json
+
+    - name: AIP console initial script
+      template:
+        src: initial-config.sh.j2
+        dest: /tmp/initial-config.sh
+        mode: 0744
+
+    - name: AIP call initial script
+      command:
+        cmd: /tmp/initial-config.sh
+    tags:
+      - configure
+

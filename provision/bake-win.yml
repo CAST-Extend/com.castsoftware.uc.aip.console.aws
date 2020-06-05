@@ -1,0 +1,10 @@
+---
+- name: Test platform for AIP console
+  hosts: vagrant_windows 
+
+  tasks:
+    - name: Firewall
+      include_tasks: win-prepare-firewall-for-swarm.yml
+    - name: Bake for tools
+      include_tasks: win-2019-install-docker.yml
+

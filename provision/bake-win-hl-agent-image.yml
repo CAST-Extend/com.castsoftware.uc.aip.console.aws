@@ -1,0 +1,34 @@
+---
+- name: Bake image for hl agent cli for windows
+  hosts: vagrant_windows:&build-hl-docker-image
+  tasks:
+    - name: Make directory for docker build context
+      win_file:
+        name: "{{ ansible_env.TEMP }}/hl"
+        state: directory
+
+    - name: Copy Dockerfile and resources
+      win_copy:
+        src: "{{ item }}"
+        dest: "{{ ansible_env.TEMP }}/hl/{{ item | basename }}"
+      loop:
+        - "{{ dockerfile }}"
+        - "{{ tarball }}"
+
+          # - name: Install PSCX
+          #   win_psmodule:
+          #     name: Pscx
+          #     state: present
+          #     allow_clobber: yes
+
+          # - name: Decompress tarball
+          #   win_unzip:
+          #     src: "{{ ansible_env.TEMP }}/hl/{{ tarball | basename }}"
+          #     dest: "{{ ansible_env.TEMP }}/hl"
+          #     recurse: yes
+
+    - name: Build image
+      win_shell: "docker build -t casthighlight/hl-agent-cli -f {{ dockerfile | basename }} ."
+      args:
+        chdir: "{{ ansible_env.TEMP }}/hl"
+        

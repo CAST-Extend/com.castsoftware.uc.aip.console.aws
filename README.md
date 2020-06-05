@@ -8,13 +8,12 @@ https://doc.castsoftware.com/display/DOC83/Installing+CAST+AIP
 https://confluence.castsoftware.com/display/download/AIP+8.3+Product+Center
 //Productfs01/EngBuild/Releases/
 smb://productfs01.corp.castsoftware.com/engbuild/
-=> take the *flat for custome*: 8.3.22_Build2313_flat_for_customer.7z
+=> take the *flat for customer*: 8.3.22_Build2313_flat_for_customer.7z
 
 * Framework Detector: detect_framework.zip
 //Productfs01/EngBuild/Releases/FrameworkDetector
 
 * AIP_console: make a tarball from source or clone repo
-https://extendng.castsoftware.com/#/extension?id=com.castsoftware.aip.console&version=1.14.2-funcrel
 
 * missing jar to compile AIP console 
 
@@ -26,6 +25,10 @@ https://extendng.castsoftware.com/#/extension?id=com.castsoftware.aip.console&ve
 * AIPConsole release: AIP-Console-xxx.zip(>1.9 with the CAST-RESTAPI-integrated.war)
 * Framework detector
 * CMSAPI source tarball
+  ```
+  cd <cmsapi>
+  zip -r ../CAST_CMSAPI_SRC .
+  ```
 * AIP flat:  x.y.zz_Buildnnnn_flat.zip (optional flat build to patch the release)
 
 To upload those files, it is recommended to install the [aws cli](https://docs.aws.amazon.com/cli/index.html).

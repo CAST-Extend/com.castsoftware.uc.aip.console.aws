@@ -1,0 +1,34 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              docker.container.image: castsoftware/aip-console
+          config:
+            - type: container
+              fields:
+                application_vendor: castsoftware
+                application_component: aip-console
+                application_stack_tenant: ${data.docker.container.labels.com.docker.stack.namespace}
+                source: ${data.host}
+              fields_under_root: true
+              paths:
+              - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              exclude_lines: ["^\\s+[\\-`('.|_]"]  # drop asciiart lines
+              multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
+              multiline.negate: false
+              multiline.match: after
+        - condition:
+            not:
+              contains:
+                docker.container.image: castsoftware 
+          config:
+            - type: container
+              fields:
+                source: ${data.host}
+              paths:
+              - /var/lib/docker/containers/${data.docker.container.id}/*.log
+
+output.logstash:
+  hosts: ["{{logcollector_host}}:{{logcollector_port}}"]

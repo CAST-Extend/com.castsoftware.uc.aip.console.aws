@@ -46,7 +46,15 @@ cast_aip_console_jar: "{{cast_aip_console}}-{{cast_aip_console_version}}-{{cast_
 
 
 # Install base dir for cast prooducts on Windows
-cast_opt: 'C:\'
-cast_aip_install_dir: '{{cast_opt}}CAST_AIP'
-cast_cmsapi_ui_jar: CAST-CMSAPI-UI-1.15.0-SNAPSHOT.jar
+cast_opt: 'C:/CAST'
+cast_aip_install_dir: '{{cast_opt}}/CAST_AIP'
+cast_cmsapi_ui_jar: CAST-CMSAPI-UI-1.17.0-SNAPSHOT.jar
 cast_aip_flat_zip: 8.3.20_Build2253_flat_for_customer.7z
+
+# License
+aip_console_extend_username: "a.thapliyal@castsoftware.com"
+aip_console_extend_password: abhi123456
+aip_console_configuration_key: 123e4567-e89b-12d3-a456-426655440000 
+aip_console_license_key: CAST_R&D:1;AIP/EFP:20200630:WZWHRXUY 
+aip_console_admin_username: cast
+aip_console_admin_password: cast

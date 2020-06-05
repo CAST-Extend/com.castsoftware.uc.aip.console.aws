@@ -1,0 +1,11 @@
+---
+- name: test aip-stack template
+  hosts: localhost
+  vars:
+    aip_node_count: 2
+  tasks:
+  - name: Apply template
+    template: 
+      src: provision/templates/aip-stack.yml.j2
+      dest: /tmp/aip-stack.yml
+      

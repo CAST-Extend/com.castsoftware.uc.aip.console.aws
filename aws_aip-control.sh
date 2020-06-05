@@ -41,7 +41,8 @@
 #    This is the paired private key of the public key defined in ~/.aip-aws as PUBLIC_KEY
 #
 # 5. Spawn the controller instance
-#    $>source ~/.aws-env
+#    Check that ~/.aws-env and ~/.aws-region are set as in 0. and 1.
+#    Check that the ssh-agent holds the private peer key of PUBLIC_KEY
 #    $>./aws_aip-control.sh
 #
 # 1. (Deprecated) Copy credentials and region to controller machine (~/.aws-env)

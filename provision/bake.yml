@@ -34,33 +34,31 @@
           - aip_default
         wait: true
         instance_tags:
-          Name: aip_linux_registy
+          Base: aws_linux
+          Name: aip_linux_registry
           Groups: aip_linux_registry
       register: bake_host
 
-    - name: Add bake instance to inventory
-      add_host:
-        name: "{{ bake_host.instances[0].public_ip }}"
-        groups: 
-        - aip_linux_registry
-        - aws_linux
-        instance_id: "{{ bake_host.instances[0].id }}"
-        private_ip_address: "{{ bake_host.instances[0].private_ip }}"
+    # if inventory with -i option, it also refreshed
+    # hanny for cloud providers
+    - name: Refresh inventory after new linux instance
+      meta: refresh_inventory
+
 
 # Playbook for the added linux registry
 - hosts: aip_linux_registry:&aws_linux
   name: AIP Linux Registry
   gather_facts: no
   pre_tasks:
-    - name: Wait for WinRM to come up
+    - name: Wait for connection to come up
       wait_for_connection:
           #delay: 60
-        timeout: 320
+        timeout: 600 
 
     - name: Gather facts for the first time
       setup:
   tasks:
-    - name: Tools setup
+    - name: Tools install
       become: yes
       block:
         - name: Install docker 
@@ -74,13 +72,6 @@
         - name: Docker version
           shell: docker version
 
-        # Docker configuration - add daemon.json
-        #  - insecure registry 
-        #  - storage
-        - name: Configure docker daemon
-          template:
-            src: docker_daemon_linux.json
-            dest: /etc/docker/daemon.json
         
         # Docker configuration
         #  - restart daemon
@@ -182,25 +173,25 @@
             state: absent
 
         - name: Tagging aip-console with local registry prefix and latest
-          shell: "docker tag castsoftware/aip-console {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+          shell: "docker tag castsoftware/aip-console localhost:{{registry_port}}/castsoftware/aip-console:latest"
 
         - name: Tagging aip-console with local registry prefix and caip version 
-          shell: "docker tag castsoftware/aip-console {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+          shell: "docker tag castsoftware/aip-console localhost:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
 
         - name: Push aip-console with latest tag
-          shell: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+          shell: "docker push localhost:{{registry_port}}/castsoftware/aip-console:latest"
           
         - name: Push aip-console with aip version tag
-          shell: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+          shell: "docker push localhost:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
 
         - name: Clean images - aip-console
           shell: "docker image rm castsoftware/aip-console"
 
         - name: Clean images - aip-console tagged latest 
-          shell: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:latest"
+          shell: "docker image rm localhost:{{registry_port}}/castsoftware/aip-console:latest"
 
         - name: Clean images - aip-console tagged version
-          shell: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
+          shell: "docker image rm localhost:{{registry_port}}/castsoftware/aip-console:{{cast_aip_version}}"
 
   post_tasks:
     # AMI management for the registry
@@ -276,8 +267,7 @@
         src: "{{aip_win_user_data}}.j2"
         dest: "{{aip_win_user_data}}"
 
-    # Creates a Windows instance for baking
-    #  a registry with images from:
+    # Creates a Windows instance to bake a docker registry with images from:
     #  - aip-console-node
     #  - aip-flat which is an image with a copy of the flat 
     - name: Windows instance to bake a docker registry 
@@ -294,22 +284,14 @@
           - device_name: /dev/sda1
             volume_size: 50
         instance_tags:
+            Base: aws_windows
             Name: aip_win_registry
             Groups: aip_win_registry
         user_data: "{{lookup('file', '{{aip_win_user_data}}')}}"
       register: bake_host
 
-    # Adds the image to the inventory
-    #  The playbook will continue with the added entry to 
-    #  'aip_win_registry'
-    - name: Add bake instance to inventory
-      add_host:
-        name: "{{ bake_host.instances[0].public_ip }}"
-        groups: 
-        - aip_win_registry
-        - aws_windows
-        instance_id: "{{ bake_host.instances[0].id }}"
-        private_ip_address: "{{ bake_host.instances[0].private_ip }}"
+    - name: Refresh inventory after new windows instance
+      meta: refresh_inventory
 
 
 # Playbook for the added windows registry
@@ -317,7 +299,6 @@
   name: AIP Windows Registry
   remote_user: Administrator
   gather_facts: no
-
   vars:
     registry_port: 5000
 
@@ -333,12 +314,7 @@
       setup:
 
     - name: Disable Domain firewall
-      win_firewall:
-          state: disabled
-          profiles:
-              - Domain
-              - Public
-              - Private
+      import_tasks: win-prepare-firewall-for-swarm.yml
 
   tasks:
 
@@ -457,22 +433,9 @@
       tags:
         - docker
 
-    # Docker configuration - add daemon.json
-    #  - insecure registry 
-    #  - storage
     - name: Configure docker daemon
-      win_template:
-        src: docker_daemon_win.json
-        dest: C:\ProgramData\docker\config\daemon.json
-      tags:
-        - docker
-    
-    # Docker configuration
-    #  - restart daemon
-    - name: Restart docker daemon
-      win_command: powershell Restart-Service docker
-      tags:
-        - docker
+      import_role:
+        name: docker_daemon
 
     # Docker configuration
     #  - Create local registry directory
@@ -493,69 +456,34 @@
     
     # Docker build
     #   - build aip-node-app
-    #
-    # # windows -pl "aip-node-app"
-    # # linux -pl "aip-console-app"
     - name: Build CMSAPI docker images
       win_command: mvn.cmd -pl "aip-node-app" -am -Pdocker -Ddetect-framework.directory=C:\CAST_DETECT_FRAMEWORK clean install -DskipTests
       args:
         chdir: C:\CAST_CMSAPI_SRC
     
-    # Docker build
-    ##  - build a image with AIP flat and CastGlobalSettings configuration
-    #- name: Copy Dockerfile to Build AIP flat with configuration
-    #  win_template:
-    #    src: Dockerfile_aip_flat.j2
-    #    dest: "{{cast_aip_install_dir}}\Dockerfile"
     
     - name: Copy CastGlobalSettings.ini in AIP flat
       win_template:
         src: CastGlobalSettings.ini.j2
         dest: "{{cast_aip_install_dir}}/CastGlobalSettings.ini"
 
-        #- name: Build flat docker image
-        #  win_command: docker build -t castsoftware/aip-flat .
-        #  args:
-        #    chdir: {{cast_aip_install_dir}}
-    
-        # - name: Tag flat docker image with aip version
-        #   win_command: "docker tag castsoftware/aip-flat castsoftware/aip-flat:{{cast_aip_version}}"
-
     - name: Tagging aip-node with local registry prefix and aip version 
-      win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+      win_command: "docker tag castsoftware/aip-node localhost:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
 
     - name: Tagging aip-node with local registry prefix and latest
-      win_command: "docker tag castsoftware/aip-node {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
-
-      #- name: Tagging aip-flat with local registry prefix and aip version
-      #  win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
-
-      #- name: Tagging aip-flat with local registry prefix and latest
-      #  win_command: "docker tag castsoftware/aip-flat {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      win_command: "docker tag castsoftware/aip-node localhost:{{registry_port}}/castsoftware/aip-node:latest"
 
     - name: Push aip-node with aip version tag
-      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+      win_command: "docker push localhost:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
 
     - name: Push aip-node with latest tag
-      win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
-
-      #- name: Push aip-flat with aip version tag 
-      #  win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
-
-      #- name: Push aip-flat with latest tag 
-      #  win_command: "docker push {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      win_command: "docker push localhost:{{registry_port}}/castsoftware/aip-node:latest"
 
     - name: Remove aip-node with aip version tag
-      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
+      win_command: "docker image rm localhost:{{registry_port}}/castsoftware/aip-node:{{cast_aip_version}}"
 
     - name: Remove aip-node with latest tag
-      win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-node:latest"
-
-      #- name: Remove aip-flat with aip version tag 
-      #  win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:{{cast_aip_version}}"
-
-      #- name: Remove aip-flat with latest tag 
-      #  win_command: "docker image rm {{private_ip_address}}:{{registry_port}}/castsoftware/aip-flat:latest"
+      win_command: "docker image rm localhost:{{registry_port}}/castsoftware/aip-node:latest"
 
   post_tasks:
     # AMI management for the registry

@@ -10,4 +10,4 @@
 
 EXTRA_VARS="$EXTRA_VARS" \
 PLAYBOOK="provision/bake.yml" \
-    ./aws_aip.sh -i bake-aip-linux-registry.ini "$@"
+    ./aws_aip.sh -i bake-aip-linux-registry.ini -i inventory.aws_ec2.yml "$@"

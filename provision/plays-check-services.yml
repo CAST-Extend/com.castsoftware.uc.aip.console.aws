@@ -1,0 +1,8 @@
+
+- hosts: all
+  tasks:
+    - name: service facts
+      service_facts:
+
+    - debug:
+        msg: "{{services|dict2items|map(attribute='key')|select('search', 'graylog')|list|count == 2}}"

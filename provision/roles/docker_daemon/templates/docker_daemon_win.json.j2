@@ -1,6 +1,6 @@
 {
 
-  {% if insecure_registry %}
+  {% if insecure_registry is defined %}
   "insecure-registries": ["{{insecure_registry.ip}}:{{insecure_registry.port}}"],
   {% endif %}
   "storage-opts": [

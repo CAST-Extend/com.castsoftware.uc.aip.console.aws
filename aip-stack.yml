@@ -1,4 +1,3 @@
----
 version: '3.6'
 services:
     postgresql:
@@ -23,37 +22,10 @@ services:
             reservations:
               cpus: '0.50'
               memory: 512M
-
-    aip-console:
-        image: 172.31.66.15:5000/castsoftware/aip-console
-        ports:
-        - "{{aip_console_port}}:8081"
-        volumes:
-        - type: volume
-          source: aip-console-data
-          target: /aipconsole/data
-        configs:
-          - source: aip-console-configurationKey
-            target: /aipconsole/config/configurationKey.txt
-        healthcheck:
-          test: curl -s -f http://localhost:8081/api/initial-config/key || exit 1
-          interval: 1m30s
-          timeout: 10s
-          retries: 3
-          start_period: 40s
-        deploy:
-          placement:
-            constraints: [engine.labels.os == linux]
-
-
-    {% if (aip_node_count|int) >= 1 %} 
-    {%- for i in range(aip_node_count|int) -%}
-    aip-node{{1 + i}}:
-        image: {{aip_win_registry_ip}}:5000/castsoftware/aip-node
+# aip node
+    aip-node:
+        image: 172.31.66.14:5000/castsoftware/aip-node
         environment:
-        - spring.datasource.hikari.initializationFailTimeout=1
-        - AIPNODE_DB_USERNAME=operator
-        - AIPNODE_DB_PASSWORD=CastAIP
         - AIPNODE_DB_HOSTNAME=postgresql
         - AIPNODE_DB_PORT=5432
 #Windows bind-mount volumes incompatible with Stacks and Services
@@ -61,26 +33,51 @@ services:
 # The workaround is to remove the VOLUME directives in the dockerfile
         volumes:
         - type: bind 
-          source: "{{cast_aip_install_dir|replace('\\','/')}}" 
+          source: C:/CAST_AIP 
           target: C:/AIPFlat
           read_only: true
         - type: volume
-          source: aip-node{{1 + i}}
+          source: aip-node1
           target: C:/CASTMS
         deploy:
           placement:
             constraints: [engine.labels.os == windows]
-    {% endfor %}
-    {% endif %}
 
-configs:
-  aip-console-configurationKey:
-    file: ./configurationKey.txt
+    aip-nodeb:
+        image: 172.31.66.14:5000/castsoftware/aip-node
+        environment:
+        - AIPNODE_DB_HOSTNAME=postgresql
+        - AIPNODE_DB_PORT=5432
+#Windows bind-mount volumes incompatible with Stacks and Services
+#https://github.com/moby/moby/issues/39577
+# The workaround is to remove the VOLUME directives in the dockerfile
+        volumes:
+        - type: bind 
+          source: C:/CAST_AIP 
+          target: C:/AIPFlat
+          read_only: true
+        - type: volume
+          source: aip-node2
+          target: C:/CASTMS
+        deploy:
+          placement:
+            constraints: [engine.labels.os == windows]
+ 
+# license: CAST_R&D:1;AIP/EFP:20200331:WZWHKHHQ
+    aip-console:
+        image: 172.31.66.15:5000/castsoftware/aip-console
+        ports:
+        - "8083:8081"
+        volumes:
+        - type: volume
+          source: aip-console
+          target: /aipconsole/data
+        deploy:
+          placement:
+            constraints: [engine.labels.os == linux]
+
 volumes:
-  aip-console-data:
+  aip-console:
   aip-data:
-  {% if (aip_node_count|int) >= 1 %}
-  {%- for i in range(aip_node_count|int) -%}
-  aip-node{{1 + i}}:
-  {% endfor %}
-  {% endif %}
+  aip-node1:
+  aip-node2:

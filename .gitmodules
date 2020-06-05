@@ -1,0 +1,3 @@
+[submodule "provision/roles/ansible-role-filebeat"]
+	path = provision/roles/ansible-role-filebeat
+	url = https://github.com/trevorijones/ansible-role-filebeat.git

@@ -1,0 +1,35 @@
+# ANSIBLE CONNECTION
+#
+#
+# WinRM on webitest is installed over HTTP only.
+# The server has no certificate to finised the WinRM configuration over HTTPS
+ansible_user: CASTCORP\casta1
+ansible_password: Forest2016!
+# WinRM over HTTP
+ansible_port: 5985
+ansible_connection: winrm
+# Only required for a self signed certificate. 
+# ansible_winrm_server_cert_validation=ignore
+ansible_winrm_transport: ntlm 
+ansible_winrm_message_encryption: auto
+
+
+# AIP CONSOLE INSTALLATION ON JNK-WEBI-TEST
+#
+#
+# Build delivery directory for aip-console installer
+aip_console_delivery_dir: \\productfs01\EngBuild\NightlyBuilds\AipConsole
+
+# Build delivery directory for dashbord war
+aip_dashboard_delivery_dir: \\productfs01\EngBuild\NightlyBuilds\Application_Dashboards
+
+
+# windows service name for aip-console and aip-node
+aip_console_service_name: aip-console-service
+aip_node_service_name: aip-node-service
+
+# Where to install aip-console and aip-node on remote machine
+# WARN: aip console installer does not support backslash. so the following does not work
+# cast_opt: "{{ ansible_env.ProgramData }}"
+cast_opt: C:/ProgramData/CAST
+cast_aip_install_dir: C:/Program Files/Cast/8.3

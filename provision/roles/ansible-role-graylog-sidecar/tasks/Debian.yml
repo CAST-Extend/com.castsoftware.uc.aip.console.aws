@@ -1,0 +1,18 @@
+---
+- block:
+  - name: fetch graylog deb distribution
+    get_url:
+      url: 'https://github.com/Graylog2/collector-sidecar/releases/download/{{sidecar_last_version}}/graylog-sidecar_{{sidecar_last_version}}-1_amd64.deb'
+      dest: /tmp/graylog-sidecar.deb
+
+  - name: install xz-utils
+    apt:
+      name: xz-utils
+
+  - name: install sidecar
+    apt:
+      update_cache: yes
+      deb: /tmp/graylog-sidecar.deb
+
+  become: true
+

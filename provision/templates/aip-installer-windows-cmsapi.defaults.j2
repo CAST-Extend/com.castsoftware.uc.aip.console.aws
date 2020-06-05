@@ -1,0 +1,31 @@
+# CAST AIPConsole 1.10.0
+
+# Installation Directory for the applications
+INSTALL_PATH={{ cast_opt }}
+
+#Installation Type(webi,cmaspi,full)
+setup.type=cmsapi
+
+
+# ==================
+# CMS API(NODE) Configuration
+# ==================
+
+# CMS API Port
+cmsapi.port=8082
+# CAST AIP location
+cmsapi.cast.ms.home={{ cast_aip_install_dir }}
+# Database host and port
+cmsapi.db.host=localhost:2282
+# Database username
+cmsapi.db.username=operator
+# Database password
+cmsapi.db.password=CastAIP
+#CAST Extend Server URL
+cmsapi.extend.server=https://extendng.castsoftware.com
+#CAST Extend Server Username
+cmsapi.extend.username={{ aip_console_extend_username }}
+#CAST Extend Server Password
+cmsapi.extend.password={{ aip_console_extend_password }}
+
+

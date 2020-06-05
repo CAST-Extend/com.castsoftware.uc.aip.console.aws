@@ -1,0 +1,71 @@
+- name: Install containers feature
+  win_feature:
+    name:
+    - Containers
+    state: present
+  register: containers_feature_install
+
+- name: Reboot if install of container feature requires it 
+  win_reboot:
+  when: containers_feature_install.reboot_required
+
+- name: Query docker service
+  win_service:
+    name: docker
+  register: docker_service
+
+- name: Install docker if no docker service
+  block:
+
+  - name: Raise TLS version
+    win_shell: '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12'
+
+  - name: Install Nuget Package Provider
+    win_shell: Install-PackageProvider -Name "NuGet" -MinimumVersion "2.8.5.201" -Force
+
+  - name: Add DockerMsftProvider powershell module repository
+    win_psmodule:
+      name: DockerMsftProvider
+      state: present
+
+
+      # - name: Ensure the required NuGet package provider version is installed
+      #   win_shell: Find-PackageProvider -Name NuGet -ForceBootstrap -IncludeDependencies -Force
+
+    #  - name: initial
+    #    win_psmodule:
+    #      name: PowershellModule
+    #      state: present
+    #
+    #  - name: PSGallery repository
+    #    win_psrepository:
+    #      name: PSGallery
+    #      source: https://www.powershellgallery.com/api/v2/
+    #      state: present
+
+      # - name: Install docker provider module
+      #   win_psmodule:
+      #     name: DockerMsftProvider
+      #     repository: PSGallery
+      #     state: present
+
+      # - name: Install docker provider
+      #   win_shell: Install-Module -Name DockerMsftProvider -Repository PSGallery -Force -Confirm 
+  
+  - name: Install docker
+    win_shell: Install-Package -Name docker -ProviderName DockerMsftProvider -Force -RequiredVersion 19.03 
+    args:
+      creates: C:\Program Files\Docker\metadata.json
+    register: dockerinstall
+
+  - name: Reboot server if Docker package requires it
+    win_reboot:
+    when: dockerinstall.changed
+
+  when: not docker_service.exists
+
+- name: Start docker service
+  win_service:
+    name: docker
+    state: started
+

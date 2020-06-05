@@ -12,4 +12,4 @@ EXTRA_VARS="win_admin_password=$WIN_ADMIN_PASSWORD"
 
 EXTRA_VARS="$EXTRA_VARS" \
 PLAYBOOK="provision/bake.yml" \
-    ./aws_aip.sh -i bake-aip-win-registry.ini "$@"
+    ./aws_aip.sh -i bake-aip-win-registry.ini -i inventory.aws_ec2.yml "$@"

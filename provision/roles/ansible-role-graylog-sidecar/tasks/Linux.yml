@@ -1,0 +1,35 @@
+---
+- name: Installing sidecar on current OS
+  include_tasks: '{{ distrib_tasks }}'
+  with_first_found:
+    - '{{ ansible_os_family }}.yml'
+    - not-supported.yml
+  loop_control:
+    loop_var: distrib_tasks
+
+- name: Configure settings block
+  block:
+   - name: sidecar configuration
+     template:
+       src: sidecar.yml.j2
+       dest: /etc/graylog/sidecar/sidecar.yml
+     vars:
+       sidecar_node_id_file: file:/etc/graylog/sidecar/node-id
+  become: true
+
+- name: Install service
+  block:
+  - name: service facts
+    service_facts:
+
+  - name: install service
+    shell: graylog-sidecar -service install 
+    when: services|dict2items|map(attribute='key')|select('search', 'graylog-sidecar')|list|count == 0
+
+  - name: start service
+    service:
+      name: graylog-sidecar
+      state: restarted
+  become: true
+
+- 

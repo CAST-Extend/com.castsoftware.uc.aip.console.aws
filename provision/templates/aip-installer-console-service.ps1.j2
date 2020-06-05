@@ -1,0 +1,11 @@
+$workdir="{{ cast_opt }}\AipConsole"
+# Create the new service.
+New-Service -name {{ aip_console_service_name }} `
+  -displayName CastAIPConsole `
+  -binaryPathName "`"$(Get-Command java).Path`" -jar=`"$workdir\bin\aip-console-app.jar`""
+
+# Attempt to set the service to delayed start using sc config.
+Try {
+  Start-Process -FilePath sc.exe -ArgumentList 'config {{ aip_console_service_name }} start= delayed-auto'
+}
+Catch { Write-Host -f red "An error occured setting the service to delayed start." }

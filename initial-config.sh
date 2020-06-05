@@ -1,3 +1,4 @@
+#!/bin/bash
 # Get key
 set -x
 server=ec2-18-209-225-90.compute-1.amazonaws.com:8081

@@ -211,8 +211,9 @@
     - name: Gather facts for the first time
       setup:
 
+# TODO: This has been moved to bake phase
     - name: Configure windows firewall for docker swarm
-      import_tasks: prepare-firewall-for-swarm.yml
+      import_tasks: win-prepare-firewall-for-swarm.yml
 
   tasks: 
     # In case the root ebs has changed, resize the C partition
@@ -242,7 +243,7 @@
       import_role:
         name: ansible-role-filebeat
       vars:
-        filebeat_template_src: filebeat-aip.yml.j2
+        filebeat_template_src: filebeat-aip-win.yml.j2
   post_tasks:
     - name: Tag stage as init
       delegate_to: localhost
@@ -288,12 +289,18 @@
           ip: "{{aws_linux_registry.instances[0].private_ip_address}}"
           port: 5000
 
+    - name: Install graylog sidecar
+      import_role:
+        name: ansible-role-graylog-sidecar
+      vars:
+        sidecar_server_url: "http://{{logcollector_host}}:9000/api/"
+        sidecar_api_token: ""
+
     - name: Install and configure filebeat
       import_role:
         name: ansible-role-filebeat
       vars:
-        filebeat_template_src: filebeat-aip.yml.j2
-
+        filebeat_template_src: filebeat-aip-linux.yml.j2
 
   post_tasks:
     - name: Tag stage as init
@@ -312,6 +319,7 @@
   name: Configuration for linux swarm master
   gather_facts: no
   tasks: 
+    # list swarm managers, ignore errors when the node is not yet part of the swarm
     - name: List swarm managers
       shell: docker node ls -q -f "role=manager"
       register: swarm_managers
@@ -385,9 +393,7 @@
       register: swarm_master_instance
 
     - name: Join swarm as windows worker
-      block: 
-        - name: Swarm join
-          win_command: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
+      win_command: "docker swarm join --token {{swarm_master_instance.instances[0].tags.Swarm_token}} {{swarm_master_instance.instances[0].private_ip_address}}:2377"
 
     # TODO: https://portainer.readthedocs.io/en/latest/agent.html#agent 
     # Because of Docker limitation you need to deploy the Agent to all Windows Server nodes by running following command on each of them

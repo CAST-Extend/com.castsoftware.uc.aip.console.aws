@@ -1,0 +1,45 @@
+
+# log collection infrastructure configuration is one of:
+#  - configure graylog sidecar to manage filebeat
+#  - configure and run filebeat as a service
+
+- name: Set facts
+  set_fact:
+    logcollection_use_graylog_sidecar: "{{logcollection_use_graylog_sidecar|default(true)}}"
+
+- name: Graylog sidecar setup
+  block:
+  - name: Get builtin sidecar Access Token 
+    uri:
+      url: http://{{logcollector_host}}:9000/api/users/graylog-sidecar/tokens
+      user: "{{logcollection_graylog_admin_user}}" 
+      password: "{{logcollection_graylog_admin_password}}"
+      method: POST
+      body_format: json
+      status: 200
+    when: logcollection_graylog_sidecar_token is not defined
+    register: res_token
+
+  - debug:
+      var: res_token
+
+  - name: Set token value
+    set_fact:
+      logcollection_graylog_sidecar_token: res_token.result.token
+    when: logcollection_graylog_sidecar_token is not defined
+
+  - name: Install sidecar
+    import_role:
+      name: ansible-role-graylog-sidecar
+    vars:
+      sidecar_server_url: "http://{{logcollector_host}}:9000/api/"
+      sidecar_api_token: "{{logcollection_graylog_sidecar_token}}"
+  when: logcollection_use_graylog_sidecar
+
+# always install filebeat, skip configuration if sidecar manages it
+- name: Install filebeat
+  import_role:
+    name: ansible-role-filebeat
+  vars:
+    fb_skip_configuration: logcollection_use_graylog_sidecar
+

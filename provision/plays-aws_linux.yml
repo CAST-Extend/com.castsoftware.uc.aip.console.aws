@@ -1,0 +1,26 @@
+---
+- hosts: aws_linux
+  name: Common configuration for aws linux instances
+  gather_facts: no
+
+  pre_tasks:
+    - name: Wait for connection
+      wait_for_connection:
+        #delay: 60
+        timeout: 320
+
+    - name: Gather facts for the first time
+      setup:
+
+  tasks:
+    - name: Import logcollection tasks
+      import_tasks: tasks-logcollection.yml
+  post_tasks:
+    - name: Tag stage as init
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      ec2_tag:
+        resource: '{{instance_id}}'
+        tags:
+          Stage: init

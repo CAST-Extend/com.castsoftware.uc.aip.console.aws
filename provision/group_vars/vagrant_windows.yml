@@ -1,0 +1,5 @@
+ansible_user: vagrant 
+ansible_password: vagrant
+ansible_port: 55985 # not 5986, as we would use for non-virtualized environments
+ansible_connection: winrm
+ansible_winrm_scheme: http
